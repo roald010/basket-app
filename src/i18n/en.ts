@@ -71,8 +71,15 @@ export const en: Dictionary = {
     savingVsOne: 'vs. 1 store',
     itemsNotCovered: (n: number) => `${n} item${n === 1 ? '' : 's'} without a match`,
     pickYourself: 'grab it yourself',
+    startShopping: 'Start shopping',
     pricingComingSoonTitle: 'Pricing coming soon',
     pricingComingSoonSubtitle: 'Store comparison and pricing land in a later phase.',
+  },
+  shopping: {
+    total: 'Total',
+    pickYourselfSection: 'Grab yourself',
+    pickYourselfHint: 'No match — grab these yourself in-store.',
+    empty: 'Nothing to buy yet.',
   },
   review: {
     stepLabel: 'Step 2 · quick check',

@@ -21,6 +21,27 @@ export type StoreCombo = {
   gapCount: number;
 };
 
+/** Where one item ends up: the cheapest chain within a chosen combo that carries it. */
+export type ItemAssignment = { listItemId: string; chainSlug: string; price: number };
+
+/**
+ * Assigns each item to its cheapest chain within `comboChains`. Items no chosen chain
+ * carries are omitted (they stay unassigned -- the honest "zelf pakken" gap). This is the
+ * per-item breakdown behind a StoreCombo's aggregate `total`, applied when a choice is committed.
+ */
+export function assignItems(items: OptimizerItem[], comboChains: string[]): ItemAssignment[] {
+  const inCombo = new Set(comboChains);
+  const assignments: ItemAssignment[] = [];
+  for (const item of items) {
+    let best: OptimizerChainPrice | null = null;
+    for (const price of item.prices) {
+      if (inCombo.has(price.chainSlug) && (best === null || price.price < best.price)) best = price;
+    }
+    if (best) assignments.push({ listItemId: item.listItemId, chainSlug: best.chainSlug, price: best.price });
+  }
+  return assignments;
+}
+
 function combinations<T>(items: T[], k: number): T[][] {
   if (k <= 0 || k > items.length) return k === 0 ? [[]] : [];
   const [first, ...rest] = items;

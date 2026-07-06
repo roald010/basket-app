@@ -10,9 +10,11 @@ import { HonestGapCard } from '@/components/ui/honest-gap-card';
 import { PriceText } from '@/components/ui/price-text';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { StoreChip } from '@/components/ui/store-chip';
+import { TotalBanner } from '@/components/ui/total-banner';
 import { useListQuery } from '@/features/lists/api';
 import { toOptimizerItems, useListItemMatchesQuery, useMatchListItemsMutation } from '@/features/matching/api';
 import { bestCombos } from '@/features/matching/optimize';
+import { useCommitSelectionMutation } from '@/features/shopping/api';
 import { useStoresQuery } from '@/features/stores/api';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -22,10 +24,11 @@ function useStoreComparison(listId: string) {
   const { data: matches = [] } = useListItemMatchesQuery(listId);
   const { data: stores = [] } = useStoresQuery();
 
-  const combos = useMemo(() => bestCombos(toOptimizerItems(matches)), [matches]);
+  const optimizerItems = useMemo(() => toOptimizerItems(matches), [matches]);
+  const combos = useMemo(() => bestCombos(optimizerItems), [optimizerItems]);
   const storesBySlug = useMemo(() => new Map(stores.map((store) => [store.slug, store])), [stores]);
 
-  return { hasItems: matches.length > 0, combos, storesBySlug };
+  return { hasItems: matches.length > 0, combos, storesBySlug, optimizerItems };
 }
 
 export default function ListHubScreen() {
@@ -36,8 +39,9 @@ export default function ListHubScreen() {
   const queryClient = useQueryClient();
   const { data: list, isLoading, isError } = useListQuery(id);
   const matchMutation = useMatchListItemsMutation();
+  const commitMutation = useCommitSelectionMutation();
   const matchTriggeredForListRef = useRef<string | null>(null);
-  const { hasItems, combos, storesBySlug } = useStoreComparison(id);
+  const { hasItems, combos, storesBySlug, optimizerItems } = useStoreComparison(id);
   const [selectedCount, setSelectedCount] = useState('1');
 
   const selectedCombo = combos.find((combo) => String(combo.storeCount) === selectedCount) ?? combos[0];
@@ -46,6 +50,21 @@ export default function ListHubScreen() {
     selectedCombo && singleStoreTotal !== undefined && selectedCombo.storeCount > 1 && selectedCombo.coveredCount >= combos[0].coveredCount
       ? singleStoreTotal - selectedCombo.total
       : 0;
+
+  function handleStartShopping() {
+    if (!selectedCombo) return;
+    commitMutation.mutate(
+      {
+        listId: id,
+        combo: selectedCombo,
+        items: optimizerItems,
+        baselineSingleStoreTotal: singleStoreTotal ?? null,
+      },
+      {
+        onSuccess: () => router.push({ pathname: '/shop/[id]', params: { id, listName: list?.name ?? '' } }),
+      }
+    );
+  }
 
   useEffect(() => {
     if (!list || list.recipes.length === 0) return;
@@ -145,6 +164,13 @@ export default function ListHubScreen() {
                     subtitle={t.listHub.pickYourself}
                   />
                 )}
+
+                <TotalBanner
+                  ctaLabel={t.listHub.startShopping}
+                  amount={selectedCombo.total}
+                  onPress={handleStartShopping}
+                  disabled={commitMutation.isPending}
+                />
               </View>
             ) : (
               <HonestGapCard

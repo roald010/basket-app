@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 
 import { supabase } from '@/lib/supabase';
+import { embeddedOne } from '@/lib/postgrest';
 import type { OptimizerItem } from '@/features/matching/optimize';
 
 export type ItemChainMatch = {
@@ -36,7 +37,7 @@ async function fetchListItemMatches(listId: string): Promise<ListItemMatchRow[]>
     chains: item.list_item_matches.map((match) => ({
       chainSlug: match.chain_slug,
       matchStatus: match.match_status,
-      price: match.products[0]?.price ?? null,
+      price: embeddedOne(match.products)?.price ?? null,
     })),
   }));
 }

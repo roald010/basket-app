@@ -69,8 +69,15 @@ export const nl = {
     savingVsOne: 't.o.v. 1 winkel',
     itemsNotCovered: (n: number) => `${n} item${n === 1 ? '' : 's'} niet te matchen`,
     pickYourself: 'zelf pakken',
+    startShopping: 'Naar boodschappen',
     pricingComingSoonTitle: 'Prijzen volgen nog',
     pricingComingSoonSubtitle: 'Winkelvergelijking en prijzen komen in een volgende fase.',
+  },
+  shopping: {
+    total: 'Totaal',
+    pickYourselfSection: 'Zelf pakken',
+    pickYourselfHint: 'Geen match — pak deze zelf in de winkel.',
+    empty: 'Nog niets om te kopen.',
   },
   review: {
     stepLabel: 'Stap 2 · controleer even',

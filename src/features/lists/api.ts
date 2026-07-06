@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 
 import { bestCombos, type OptimizerItem } from '@/features/matching/optimize';
+import { embeddedOne } from '@/lib/postgrest';
 import { supabase } from '@/lib/supabase';
 
 export type ListRecipe = {
@@ -60,9 +61,10 @@ async function fetchLists(): Promise<ListSummary[]> {
   return data.map((list) => {
     const items: OptimizerItem[] = list.list_items.map((item) => ({
       listItemId: item.id,
-      prices: item.list_item_matches
-        .filter((match) => match.match_status === 'matched' && match.products[0]?.price != null)
-        .map((match) => ({ chainSlug: match.chain_slug, price: match.products[0]!.price })),
+      prices: item.list_item_matches.flatMap((match) => {
+        const price = embeddedOne(match.products)?.price;
+        return match.match_status === 'matched' && price != null ? [{ chainSlug: match.chain_slug, price }] : [];
+      }),
     }));
 
     // Only a full-coverage single store gets a headline price -- a partial total would
