@@ -1,0 +1,31 @@
+name: Ingest checkjebon product data
+
+# Daily refresh of the `products` catalog from https://github.com/supermarkt/checkjebon
+# (updated roughly once a day upstream, ~05:00 UTC) -- see ingest-checkjebon Edge
+# Function for the actual ingestion logic. Runs on GitHub's scheduler rather than
+# Supabase pg_cron so the service-role secret stays in GitHub's encrypted secrets
+# instead of a committed migration.
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  ingest:
+    name: Trigger ingest-checkjebon
+    runs-on: ubuntu-latest
+    steps:
+      - name: Invoke Edge Function
+        run: |
+          status=$(curl -s -o /tmp/response.json -w '%{http_code}' -X POST \
+            "${SUPABASE_PROJECT_URL}/functions/v1/ingest-checkjebon" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json")
+          cat /tmp/response.json
+          if [ "$status" -ge 300 ]; then
+            echo "ingest-checkjebon returned HTTP $status"
+            exit 1
+          fi
+        env:
+          SUPABASE_PROJECT_URL: ${{ secrets.SUPABASE_PROJECT_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
