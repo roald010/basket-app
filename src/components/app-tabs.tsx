@@ -21,6 +21,10 @@ const SLOT_COUNT = 5;
 const BAR_H_PADDING = 12;
 const INDICATOR_WIDTH = 26;
 
+// Matches the sliding indicator's own spring below, so the tab-icon "pop" and the
+// indicator glide at the same perceived speed instead of the icon lagging behind.
+const TAB_PRESS_SPRING = { damping: 20, stiffness: 420, mass: 0.6 };
+
 function slotForPath(pathname: string): number {
   if (pathname === '/lists') return 1;
   if (pathname === '/staples') return 3;
@@ -43,7 +47,7 @@ function NavButton({ icon, label, isFocused, ...props }: NavButtonProps) {
   const color = isFocused ? BrandColors.green : theme.textSecondary;
 
   return (
-    <AnimatedPressable {...props} scaleTo={0.9} style={styles.navButton}>
+    <AnimatedPressable {...props} scaleTo={0.9} springConfig={TAB_PRESS_SPRING} style={styles.navButton}>
       <NavIcon name={icon} color={color} active={isFocused} />
       <ThemedText type="small" style={[styles.navLabel, { color }]} numberOfLines={1}>
         {label}

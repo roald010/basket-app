@@ -8,8 +8,9 @@ import { ThemedText } from '@/components/themed-text';
 import { BackButton } from '@/components/ui/back-button';
 import { Expandable } from '@/components/ui/expandable';
 import { HonestGapCard } from '@/components/ui/honest-gap-card';
+import { ListItemRow } from '@/components/ui/list-item-row';
 import { PriceText } from '@/components/ui/price-text';
-import { ProductIcon, matchProductCategory } from '@/components/ui/product-icon';
+import { ProductIcon } from '@/components/ui/product-icon';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { SkeletonCard } from '@/components/ui/skeleton';
 import { StoreChip } from '@/components/ui/store-chip';
@@ -45,20 +46,32 @@ function useStoreComparison(listId: string, includeStaples: boolean) {
   const combos = useMemo(() => bestCombos(optimizerItems), [optimizerItems]);
   const storesBySlug = useMemo(() => new Map(stores.map((store) => [store.slug, store])), [stores]);
 
+  // Per-item price at the single-cheapest-store baseline -- shown on every expanded
+  // row (recipe ingredient, staple, manual product) regardless of which combo the user
+  // later picks, so rows don't jump around as the 1/2/3-store selector changes. Same
+  // baseline recipePrices below sums from.
+  const itemAssignments = useMemo(
+    () => (combos.length === 0 ? [] : assignItems(optimizerItems, combos[0].chains)),
+    [optimizerItems, combos]
+  );
+  const itemPrices = useMemo(
+    () => new Map(itemAssignments.map((assignment) => [assignment.listItemId, assignment.price])),
+    [itemAssignments]
+  );
+
   // Per-recipe subtotal at the single cheapest store -- shown on each recipe row
   // regardless of which combo the user later picks, so recipe cards don't jump around
   // as the 1/2/3-store selector changes.
   const recipePrices = useMemo(() => {
     const totals = new Map<string, number>();
-    if (combos.length === 0) return totals;
     const recipeIdByItem = new Map(includedMatches.map((match) => [match.listItemId, match.recipeId]));
-    for (const assignment of assignItems(optimizerItems, combos[0].chains)) {
+    for (const assignment of itemAssignments) {
       const recipeId = recipeIdByItem.get(assignment.listItemId);
       if (!recipeId) continue;
       totals.set(recipeId, (totals.get(recipeId) ?? 0) + assignment.price);
     }
     return totals;
-  }, [includedMatches, optimizerItems, combos]);
+  }, [includedMatches, itemAssignments]);
 
   // Staple summary is computed from the full, unfiltered match set (independent of the
   // toggle) so the "Vaste producten" card always shows what's in the list, not what's
@@ -92,6 +105,7 @@ function useStoreComparison(listId: string, includeStaples: boolean) {
     combos,
     storesBySlug,
     optimizerItems,
+    itemPrices,
     recipePrices,
     recipeIngredients,
     stapleItems: stapleMatches,
@@ -120,6 +134,7 @@ export default function ListHubScreen() {
     combos,
     storesBySlug,
     optimizerItems,
+    itemPrices,
     recipePrices,
     recipeIngredients,
     stapleItems,
@@ -293,18 +308,13 @@ export default function ListHubScreen() {
                       </>
                     }>
                     {ingredients.map((item) => (
-                      <View key={item.listItemId} style={[styles.itemRow, { borderColor: theme.backgroundElement }]}>
-                        <ProductIcon category={matchProductCategory(item.name)} color={theme.textSecondary} size={16} />
-                        <ThemedText type="small" style={styles.itemRowName} numberOfLines={1}>
-                          {item.name}
-                        </ThemedText>
-                        {item.quantity != null && (
-                          <ThemedText type="small" themeColor="textSecondary">
-                            {item.quantity}
-                            {item.unit ? ` ${item.unit}` : ''}
-                          </ThemedText>
-                        )}
-                      </View>
+                      <ListItemRow
+                        key={item.listItemId}
+                        name={item.name}
+                        quantity={item.quantity}
+                        unit={item.unit}
+                        price={itemPrices.get(item.listItemId)}
+                      />
                     ))}
                   </Expandable>
                 );
@@ -351,18 +361,13 @@ export default function ListHubScreen() {
                     </>
                   }>
                   {stapleItems.map((item) => (
-                    <View key={item.listItemId} style={[styles.itemRow, { borderColor: theme.backgroundElement }]}>
-                      <ProductIcon category={matchProductCategory(item.name)} color={theme.textSecondary} size={16} />
-                      <ThemedText type="small" style={styles.itemRowName} numberOfLines={1}>
-                        {item.name}
-                      </ThemedText>
-                      {item.quantity != null && (
-                        <ThemedText type="small" themeColor="textSecondary">
-                          {item.quantity}
-                          {item.unit ? ` ${item.unit}` : ''}
-                        </ThemedText>
-                      )}
-                    </View>
+                    <ListItemRow
+                      key={item.listItemId}
+                      name={item.name}
+                      quantity={item.quantity}
+                      unit={item.unit}
+                      price={itemPrices.get(item.listItemId)}
+                    />
                   ))}
                 </Expandable>
               </View>
@@ -373,17 +378,14 @@ export default function ListHubScreen() {
                 {t.listHub.manualProducts.toUpperCase()}
               </ThemedText>
               {manualItems.map((item) => (
-                <View key={item.listItemId} style={[styles.productRow, { backgroundColor: theme.background, borderColor: theme.backgroundElement }]}>
-                  <View style={[styles.itemIcon, { backgroundColor: theme.backgroundElement }]}>
-                    <ProductIcon category={matchProductCategory(item.name)} color={theme.textSecondary} />
-                  </View>
-                  <ThemedText type="smallBold" style={styles.productRowText} numberOfLines={1}>
-                    {item.name}
-                  </ThemedText>
-                  <Pressable onPress={() => handleRemoveManualProduct(item.listItemId)} hitSlop={Spacing.two}>
-                    <ThemedText themeColor="textSecondary">✕</ThemedText>
-                  </Pressable>
-                </View>
+                <ListItemRow
+                  key={item.listItemId}
+                  name={item.name}
+                  quantity={item.quantity}
+                  unit={item.unit}
+                  price={itemPrices.get(item.listItemId)}
+                  onRemove={() => handleRemoveManualProduct(item.listItemId)}
+                />
               ))}
               {isAddingProduct ? (
                 <View style={[styles.addRow, styles.addRowActive, { borderColor: theme.backgroundSelected }]}>
@@ -555,28 +557,5 @@ const styles = StyleSheet.create({
     width: '100%',
     textAlign: 'center',
     padding: 0,
-  },
-  productRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.three,
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: Spacing.three,
-  },
-  productRowText: {
-    flex: 1,
-    minWidth: 0,
-  },
-  itemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-    borderBottomWidth: 1,
-    paddingVertical: Spacing.one + 2,
-  },
-  itemRowName: {
-    flex: 1,
-    minWidth: 0,
   },
 });
