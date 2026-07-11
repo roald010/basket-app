@@ -55,6 +55,7 @@ export default function CaptureScreen() {
             servingsTarget: result.servingsTarget,
             ingredients: result.ingredients.map((ingredient) => ({
               ...ingredient,
+              quantity: ingredient.quantity || 1,
               isManuallyEdited: false,
             })),
           });
