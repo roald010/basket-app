@@ -1,5 +1,8 @@
 /** Default locale -- Basket is NL-first, EN-secondary (see design doc masthead: "NL / EN"). */
 export const nl = {
+  common: {
+    ok: 'OK',
+  },
   nav: {
     home: 'Home',
     lists: 'Mandjes',

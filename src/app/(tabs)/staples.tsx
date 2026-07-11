@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Alert, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { Dialog } from '@/components/ui/dialog';
 import { ProductIcon, matchProductCategory } from '@/components/ui/product-icon';
 import { SkeletonCard } from '@/components/ui/skeleton';
 import { Stepper } from '@/components/ui/stepper';
@@ -38,6 +39,7 @@ export default function StaplesScreen() {
   const [newUnit, setNewUnit] = useState('');
   const [editingUnitId, setEditingUnitId] = useState<string | null>(null);
   const [unitDraft, setUnitDraft] = useState('');
+  const [pendingRemove, setPendingRemove] = useState<StapleTemplate | null>(null);
 
   const submitNewStaple = () => {
     const name = newName.trim();
@@ -67,14 +69,7 @@ export default function StaplesScreen() {
   // soft-disabling forever -- a real delete, not just quantity 0 (see
   // useDeleteStapleTemplateMutation for why that's safe for historical lists).
   function confirmRemove(item: StapleTemplate) {
-    Alert.alert(t.staples.removeTitle(item.name), t.staples.removeMessage, [
-      { text: t.staples.cancel, style: 'cancel' },
-      {
-        text: t.staples.remove,
-        style: 'destructive',
-        onPress: () => deleteStaple.mutate(item.id),
-      },
-    ]);
+    setPendingRemove(item);
   }
 
   // See index.tsx for why iOS now needs explicit padding (headless tab bar, no
@@ -195,6 +190,24 @@ export default function StaplesScreen() {
           </View>
         </ThemedView>
       </ScrollView>
+
+      <Dialog
+        visible={pendingRemove !== null}
+        onClose={() => setPendingRemove(null)}
+        title={pendingRemove ? t.staples.removeTitle(pendingRemove.name) : ''}
+        message={t.staples.removeMessage}
+        actions={[
+          { label: t.staples.cancel, onPress: () => setPendingRemove(null) },
+          {
+            label: t.staples.remove,
+            variant: 'fix-it',
+            onPress: () => {
+              if (pendingRemove) deleteStaple.mutate(pendingRemove.id);
+              setPendingRemove(null);
+            },
+          },
+        ]}
+      />
     </TabScreenTransition>
   );
 }

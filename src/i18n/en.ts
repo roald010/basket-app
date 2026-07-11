@@ -2,6 +2,9 @@ import type { Dictionary } from '@/i18n/types';
 
 /** English secondary locale. Kept structurally identical to nl.ts (typed against it) so a missing key is a type error, not a silent fallback. */
 export const en: Dictionary = {
+  common: {
+    ok: 'OK',
+  },
   nav: {
     home: 'Home',
     lists: 'Baskets',
