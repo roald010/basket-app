@@ -19,10 +19,18 @@ npm run ios             # start + open iOS simulator
 npm run android         # start + open Android emulator
 npm run web              # start + open in browser
 npm run lint             # expo lint (ESLint)
+npm run typecheck        # tsc --noEmit
+npm test                 # node --test over tests/ (pure-logic unit tests)
 npm run reset-project     # moves the ENTIRE /src (and /scripts) directory to /example and starts a blank src/app — do not run, it would delete all product code built so far
 ```
 
-No test suite exists in this repo yet.
+Tests cover only the pure, RN-free logic (`src/features/matching/optimize.ts`,
+`src/lib/postgrest.ts`, `src/lib/format-date.ts`) via Node's built-in test runner with
+type-stripping — no jest/vitest dependency. This **requires Node ≥ 22** (local and CI).
+`tests/` is excluded from `tsc` (like `supabase/functions/`); the tests are validated by
+running them. There is no RN component/integration test harness — screens are verified by
+driving a simulator. CI (`.github/workflows/ci.yml`) runs typecheck + lint + test on every
+PR; see `CONTRIBUTING.md` for the PR/changelog workflow (every PR updates `CHANGELOG.md`).
 
 Supabase backend (see `supabase/`), CLI via `npx supabase <cmd>` (no global install):
 ```bash
