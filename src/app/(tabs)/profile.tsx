@@ -104,67 +104,77 @@ export default function ProfileScreen() {
           </Modal>
 
           <View style={styles.section}>
-            <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionLabel}>
-              {t.profile.shopperProfile}
-            </ThemedText>
-            <SegmentedControl
-              options={[
-                { value: 'budget', label: t.profile.tierBudget },
-                { value: 'balans', label: t.profile.tierBalans },
-                { value: 'premium', label: t.profile.tierPremium },
+            <View
+              style={[
+                styles.pickerCard,
+                { backgroundColor: theme.chipCheapestBg + '14', borderColor: BrandColors.green },
               ]}
-              value={tier}
-              onChange={(value) => updateTier.mutate(value as ShopperTier)}
-            />
-            <ThemedText type="small" themeColor="textSecondary">
-              {t.profile.tierExplain}
-            </ThemedText>
+            >
+              <ThemedText type="smallBold" style={styles.sectionLabel}>
+                {t.profile.shopperProfile}
+              </ThemedText>
+              <SegmentedControl
+                options={[
+                  { value: 'budget', label: t.profile.tierBudget },
+                  { value: 'balans', label: t.profile.tierBalans },
+                  { value: 'premium', label: t.profile.tierPremium },
+                ]}
+                value={tier}
+                onChange={(value) => updateTier.mutate(value as ShopperTier)}
+              />
+              <ThemedText type="small" themeColor="textSecondary">
+                {t.profile.tierExplain}
+              </ThemedText>
+            </View>
 
+            {/* Deliberately flat/non-tappable-looking (no per-column borders or fills like
+                the picker above) -- this is a read-only illustration of the current pick,
+                not a second control, so it must never read as its own set of buttons. */}
             <View style={[styles.exampleCard, { backgroundColor: theme.backgroundElement }]}>
-              <ThemedText type="smallBold">{t.profile.exampleFor('Pecorino Romano')}</ThemedText>
+              <View style={[styles.exampleBadge, { backgroundColor: theme.backgroundSelected }]}>
+                <ThemedText type="small" themeColor="textSecondary" style={styles.exampleBadgeText}>
+                  {t.profile.exampleBadge}
+                </ThemedText>
+              </View>
+              <ThemedText type="small" themeColor="textSecondary">
+                {t.profile.exampleFor('Pecorino Romano')}
+              </ThemedText>
               <View style={styles.optionRow}>
-                {EXAMPLE_OPTIONS.map((option) => {
+                {EXAMPLE_OPTIONS.map((option, index) => {
                   const active = option.tier === tier;
                   return (
                     <View
                       key={option.tier}
                       style={[
-                        styles.optionTile,
-                        {
-                          backgroundColor: theme.background,
-                          borderColor: theme.backgroundSelected,
-                        },
-                        active && {
-                          borderColor: BrandColors.green,
-                          backgroundColor: theme.chipCheapestBg,
-                        },
-                        !active && styles.optionTileInactive,
+                        styles.optionColumn,
+                        index > 0 && { borderLeftWidth: 1, borderLeftColor: theme.backgroundSelected },
                       ]}
                     >
-                      <View style={styles.optionTierRow}>
-                        <ThemedText
-                          type="small"
-                          style={[
-                            styles.optionTierLabel,
-                            {
-                              color: active ? theme.chipCheapestText : theme.textSecondary,
-                            },
-                          ]}
-                        >
-                          {tierLabel[option.tier].toUpperCase()}
-                        </ThemedText>
-                        {active ? (
-                          <ThemedText type="small" style={{ color: theme.chipCheapestText }}>
-                            ✓
-                          </ThemedText>
-                        ) : null}
-                      </View>
-                      <ThemedText type="smallBold" style={active ? { color: theme.chipCheapestText } : undefined} numberOfLines={2}>
+                      <ThemedText
+                        type="small"
+                        style={[styles.optionTierLabel, { color: active ? theme.text : theme.textSecondary }]}
+                      >
+                        {tierLabel[option.tier].toUpperCase()}
+                      </ThemedText>
+                      <ThemedText
+                        type="small"
+                        style={active ? styles.optionNameActive : { color: theme.textSecondary }}
+                        numberOfLines={2}
+                      >
                         {option.name}
                       </ThemedText>
-                      <ThemedText type="small" tabularNums style={active ? { color: theme.chipCheapestText } : undefined}>
+                      <ThemedText
+                        type="small"
+                        tabularNums
+                        style={active ? [styles.optionNameActive, { color: BrandColors.green }] : { color: theme.textSecondary }}
+                      >
                         {option.price}
                       </ThemedText>
+                      {active && (
+                        <ThemedText type="small" style={{ color: BrandColors.green }}>
+                          {t.profile.yourPick}
+                        </ThemedText>
+                      )}
                     </View>
                   );
                 })}
@@ -293,29 +303,37 @@ const styles = StyleSheet.create({
   },
   section: { gap: Spacing.three },
   sectionLabel: { letterSpacing: 0.5 },
-  exampleCard: {
+  pickerCard: {
     borderRadius: 16,
+    borderWidth: 1.5,
     padding: Spacing.three,
     gap: Spacing.three,
   },
-  optionRow: {
-    flexDirection: 'row',
+  exampleCard: {
+    borderRadius: 16,
+    padding: Spacing.three,
     gap: Spacing.two,
   },
-  optionTile: {
-    flex: 1,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    padding: Spacing.two,
-    gap: Spacing.one,
+  exampleBadge: {
+    alignSelf: 'flex-start',
+    borderRadius: 6,
+    paddingHorizontal: Spacing.one + 2,
+    paddingVertical: 2,
   },
-  optionTileInactive: {
-    opacity: 0.6,
+  exampleBadgeText: {
+    fontSize: 10,
+    letterSpacing: 0.8,
   },
-  optionTierRow: {
+  optionRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  },
+  optionColumn: {
+    flex: 1,
+    gap: Spacing.one,
+    paddingHorizontal: Spacing.two,
+  },
+  optionNameActive: {
+    fontWeight: '700',
   },
   optionTierLabel: {
     fontSize: 10,
