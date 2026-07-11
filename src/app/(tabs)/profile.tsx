@@ -104,85 +104,6 @@ export default function ProfileScreen() {
           </Modal>
 
           <View style={styles.section}>
-            <View
-              style={[
-                styles.pickerCard,
-                { backgroundColor: theme.chipCheapestBg + '14', borderColor: BrandColors.green },
-              ]}
-            >
-              <ThemedText type="smallBold" style={styles.sectionLabel}>
-                {t.profile.shopperProfile}
-              </ThemedText>
-              <SegmentedControl
-                options={[
-                  { value: 'budget', label: t.profile.tierBudget },
-                  { value: 'balans', label: t.profile.tierBalans },
-                  { value: 'premium', label: t.profile.tierPremium },
-                ]}
-                value={tier}
-                onChange={(value) => updateTier.mutate(value as ShopperTier)}
-              />
-              <ThemedText type="small" themeColor="textSecondary">
-                {t.profile.tierExplain}
-              </ThemedText>
-            </View>
-
-            {/* Deliberately flat/non-tappable-looking (no per-column borders or fills like
-                the picker above) -- this is a read-only illustration of the current pick,
-                not a second control, so it must never read as its own set of buttons. */}
-            <View style={[styles.exampleCard, { backgroundColor: theme.backgroundElement }]}>
-              <View style={[styles.exampleBadge, { backgroundColor: theme.backgroundSelected }]}>
-                <ThemedText type="small" themeColor="textSecondary" style={styles.exampleBadgeText}>
-                  {t.profile.exampleBadge}
-                </ThemedText>
-              </View>
-              <ThemedText type="small" themeColor="textSecondary">
-                {t.profile.exampleFor('Pecorino Romano')}
-              </ThemedText>
-              <View style={styles.optionRow}>
-                {EXAMPLE_OPTIONS.map((option, index) => {
-                  const active = option.tier === tier;
-                  return (
-                    <View
-                      key={option.tier}
-                      style={[
-                        styles.optionColumn,
-                        index > 0 && { borderLeftWidth: 1, borderLeftColor: theme.backgroundSelected },
-                      ]}
-                    >
-                      <ThemedText
-                        type="small"
-                        style={[styles.optionTierLabel, { color: active ? theme.text : theme.textSecondary }]}
-                      >
-                        {tierLabel[option.tier].toUpperCase()}
-                      </ThemedText>
-                      <ThemedText
-                        type="small"
-                        style={active ? styles.optionNameActive : { color: theme.textSecondary }}
-                        numberOfLines={2}
-                      >
-                        {option.name}
-                      </ThemedText>
-                      <ThemedText
-                        type="small"
-                        tabularNums
-                        style={active ? [styles.optionNameActive, { color: BrandColors.green }] : { color: theme.textSecondary }}
-                      >
-                        {option.price}
-                      </ThemedText>
-                      {active && (
-                        <ThemedText type="small" style={{ color: BrandColors.green }}>
-                          {t.profile.yourPick}
-                        </ThemedText>
-                      )}
-                    </View>
-                  );
-                })}
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.section}>
             <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionLabel}>
               {t.profile.myStores}
             </ThemedText>
@@ -236,6 +157,79 @@ export default function ProfileScreen() {
                 </View>
               </>
             )}
+          </View>
+
+          <View style={styles.section}>
+            {/* One card, two zones -- a shared border/radius keeps the real control and
+                its example feeling like one unit, while the tint change (green vs. flat
+                beige) is what actually tells the user which part is selectable. */}
+            <View style={[styles.tierCard, { borderColor: BrandColors.green }]}>
+              <View style={[styles.tierPickerBlock, { backgroundColor: theme.chipCheapestBg + '14' }]}>
+                <ThemedText type="smallBold" style={styles.sectionLabel}>
+                  {t.profile.shopperProfile}
+                </ThemedText>
+                <SegmentedControl
+                  options={[
+                    { value: 'budget', label: t.profile.tierBudget },
+                    { value: 'balans', label: t.profile.tierBalans },
+                    { value: 'premium', label: t.profile.tierPremium },
+                  ]}
+                  value={tier}
+                  onChange={(value) => updateTier.mutate(value as ShopperTier)}
+                />
+              </View>
+
+              <View style={[styles.tierExampleBlock, { backgroundColor: theme.backgroundElement }]}>
+                <View style={[styles.exampleBadge, { backgroundColor: theme.backgroundSelected }]}>
+                  <ThemedText type="small" themeColor="textSecondary" style={styles.exampleBadgeText}>
+                    {t.profile.exampleBadge}
+                  </ThemedText>
+                </View>
+                <ThemedText type="small" themeColor="textSecondary">
+                  {t.profile.exampleFor('Pecorino Romano')}
+                </ThemedText>
+                <View style={styles.optionRow}>
+                  {EXAMPLE_OPTIONS.map((option, index) => {
+                    const active = option.tier === tier;
+                    return (
+                      <View
+                        key={option.tier}
+                        style={[
+                          styles.optionColumn,
+                          index > 0 && { borderLeftWidth: 1, borderLeftColor: theme.backgroundSelected },
+                        ]}
+                      >
+                        <ThemedText
+                          type="small"
+                          style={[styles.optionTierLabel, { color: active ? theme.text : theme.textSecondary }]}
+                        >
+                          {tierLabel[option.tier].toUpperCase()}
+                        </ThemedText>
+                        <ThemedText
+                          type="small"
+                          style={active ? styles.optionNameActive : { color: theme.textSecondary }}
+                          numberOfLines={2}
+                        >
+                          {option.name}
+                        </ThemedText>
+                        <ThemedText
+                          type="small"
+                          tabularNums
+                          style={active ? [styles.optionNameActive, { color: BrandColors.green }] : { color: theme.textSecondary }}
+                        >
+                          {option.price}
+                        </ThemedText>
+                        {active && (
+                          <ThemedText type="small" style={{ color: BrandColors.green }}>
+                            {t.profile.yourPick}
+                          </ThemedText>
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            </View>
           </View>
 
           <View style={[styles.alternativesRow, { backgroundColor: theme.backgroundElement }]}>
@@ -303,14 +297,16 @@ const styles = StyleSheet.create({
   },
   section: { gap: Spacing.three },
   sectionLabel: { letterSpacing: 0.5 },
-  pickerCard: {
+  tierCard: {
     borderRadius: 16,
     borderWidth: 1.5,
+    overflow: 'hidden',
+  },
+  tierPickerBlock: {
     padding: Spacing.three,
     gap: Spacing.three,
   },
-  exampleCard: {
-    borderRadius: 16,
+  tierExampleBlock: {
     padding: Spacing.three,
     gap: Spacing.two,
   },

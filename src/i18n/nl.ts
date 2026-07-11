@@ -48,7 +48,6 @@ export const nl = {
     tierBudget: 'Budget',
     tierBalans: 'Balans',
     tierPremium: 'Premium',
-    tierExplain: 'Bepaalt of we huismerk of bio kiezen. In elke winkel dezelfde keuze.',
     exampleBadge: 'VOORBEELD',
     exampleFor: (ingredient: string) => `Voor "${ingredient}"`,
     yourPick: 'jouw keuze',

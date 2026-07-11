@@ -48,7 +48,6 @@ export const en: Dictionary = {
     tierBudget: 'Budget',
     tierBalans: 'Balanced',
     tierPremium: 'Premium',
-    tierExplain: 'Decides whether we pick store-brand or organic. The same choice at every store.',
     exampleBadge: 'EXAMPLE',
     exampleFor: (ingredient: string) => `For "${ingredient}"`,
     yourPick: 'your pick',
