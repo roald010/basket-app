@@ -12,6 +12,12 @@ export type ItemChainMatch = {
 
 export type ListItemMatchRow = {
   listItemId: string;
+  /** null for staple/manual rows -- only recipe-sourced items belong to a recipe. */
+  recipeId: string | null;
+  sourceType: 'recipe' | 'staple' | 'manual';
+  name: string;
+  quantity: number | null;
+  unit: string | null;
   chains: ItemChainMatch[];
 };
 
@@ -28,12 +34,17 @@ export function toOptimizerItems(rows: ListItemMatchRow[]): OptimizerItem[] {
 async function fetchListItemMatches(listId: string): Promise<ListItemMatchRow[]> {
   const { data, error } = await supabase
     .from('list_items')
-    .select('id, list_item_matches(chain_slug, match_status, products(price))')
+    .select('id, recipe_id, source_type, name, quantity, unit, list_item_matches(chain_slug, match_status, products(price))')
     .eq('list_id', listId);
   if (error) throw error;
 
   return data.map((item) => ({
     listItemId: item.id,
+    recipeId: item.recipe_id,
+    sourceType: item.source_type,
+    name: item.name,
+    quantity: item.quantity,
+    unit: item.unit,
     chains: item.list_item_matches.map((match) => ({
       chainSlug: match.chain_slug,
       matchStatus: match.match_status,

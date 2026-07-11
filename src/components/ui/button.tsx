@@ -1,6 +1,7 @@
-import { Pressable, StyleSheet, type PressableProps } from 'react-native';
+import { StyleSheet, type PressableProps } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
+import { AnimatedPressable } from '@/components/ui/animated-pressable';
 import { BrandColors } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -24,8 +25,9 @@ export function Button({ label, variant = 'primary-green', disabled, ...rest }: 
   const textColor = variant === 'outline' ? theme.text : theme.background;
 
   return (
-    <Pressable
+    <AnimatedPressable
       disabled={disabled}
+      scaleTo={0.97}
       style={[
         styles.button,
         { backgroundColor, opacity: disabled ? 0.5 : 1 },
@@ -35,7 +37,7 @@ export function Button({ label, variant = 'primary-green', disabled, ...rest }: 
       <ThemedText type="smallBold" style={{ color: textColor }}>
         {label}
       </ThemedText>
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 

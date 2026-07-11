@@ -25,8 +25,14 @@ export default function CaptureScreen() {
   const [error, setError] = useState<string | null>(null);
   const parseRecipe = useParseRecipeMutation();
 
+  // No top inset here on purpose (matches review.tsx, the next step in this same
+  // formSheet flow): this content lives inside a sheet, not a full-screen view, so
+  // the device's status-bar/notch safe-area top inset doesn't apply -- adding it on
+  // top of the header's own fixed padding produced a large, wrong gap above the sheet
+  // content that isn't there in review.tsx.
   const contentPlatformStyle = Platform.select({
     android: { paddingTop: insets.top, paddingBottom: insets.bottom + Spacing.four },
+    ios: { paddingBottom: insets.bottom + Spacing.four },
     web: { paddingTop: Spacing.six, paddingBottom: Spacing.four },
   });
 
@@ -62,13 +68,9 @@ export default function CaptureScreen() {
   return (
     <ScrollView
       style={[styles.scrollView, { backgroundColor: theme.background }]}
-      contentInset={insets}
       contentContainerStyle={[styles.contentContainer, contentPlatformStyle]}
       keyboardShouldPersistTaps="handled">
       <View style={styles.header}>
-        <ThemedText type="small" themeColor="textSecondary">
-          {t.capture.addToList(listName ?? t.capture.newListDefaultName)}
-        </ThemedText>
         <ThemedText type="subtitle">{t.capture.heading}</ThemedText>
       </View>
 
@@ -98,9 +100,6 @@ export default function CaptureScreen() {
             { color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundElement },
           ]}
         />
-        <ThemedText type="small" themeColor="textSecondary">
-          {t.capture.growHint}
-        </ThemedText>
 
         {/* Manual text entry has no known source serving count until parsing --
             the "recipe is for N" prefill note only makes sense for Link/Photo
@@ -141,7 +140,9 @@ const styles = StyleSheet.create({
   header: {
     gap: Spacing.half,
     paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.two,
+    // Extra room below the sheet's grabber handle (sheetGrabberVisible in
+    // src/app/_layout.tsx) -- Spacing.two read as cramped right under it.
+    paddingTop: Spacing.four,
     paddingBottom: Spacing.two,
   },
   body: {

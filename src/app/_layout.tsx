@@ -15,7 +15,8 @@ import { useFonts } from 'expo-font';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
-import { useColorScheme } from 'react-native';
+import { StyleSheet, useColorScheme } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { I18nProvider } from '@/i18n';
@@ -47,23 +48,34 @@ export default function RootLayout() {
   if (!fontsLoaded) return null;
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <I18nProvider>
-          <AnimatedSplashOverlay />
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen
-              name="capture"
-              options={{
-                presentation: 'formSheet',
-                sheetAllowedDetents: [0.6, 0.9],
-                sheetGrabberVisible: true,
-              }}
-            />
-          </Stack>
-        </I18nProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+    <GestureHandlerRootView style={styles.root}>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+          <I18nProvider>
+            <AnimatedSplashOverlay />
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen
+                name="capture"
+                options={{
+                  presentation: 'formSheet',
+                  // A single near-full detent -- sheetInitialDetentIndex defaults to 0
+                  // and there's no API to auto-switch detents when the nested Capture ->
+                  // Review stack navigates, so a multi-detent array here just meant the
+                  // sheet was permanently stuck at its smallest size unless the user
+                  // found the grabber and dragged it up themselves.
+                  sheetAllowedDetents: [0.95],
+                  sheetGrabberVisible: true,
+                }}
+              />
+            </Stack>
+          </I18nProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </GestureHandlerRootView>
   );
 }
+
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+});

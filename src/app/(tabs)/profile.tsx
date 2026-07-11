@@ -1,33 +1,24 @@
 import { useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { StoreChip } from '@/components/ui/store-chip';
+import { TabScreenTransition } from '@/components/ui/tab-screen-transition';
 import { Toggle } from '@/components/ui/toggle';
+import { useProfileQuery, useUpdateShopperTierMutation, type ShopperTier } from '@/features/profile/api';
+import { useStoresQuery } from '@/features/stores/api';
+import { useAddUserStoreMutation, useRemoveUserStoreMutation, useUserStoresQuery } from '@/features/stores/user-stores-api';
 import { BottomTabInset, BrandColors, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { useTranslation } from '@/i18n';
+import { useTranslation, type Locale } from '@/i18n';
 
-type Tier = 'budget' | 'balans' | 'premium';
-
-const EXAMPLE_OPTIONS: { tier: Tier; name: string; price: string }[] = [
+const EXAMPLE_OPTIONS: { tier: ShopperTier; name: string; price: string }[] = [
   { tier: 'budget', name: 'Basic geraspt', price: '€1,29' },
   { tier: 'balans', name: 'Pecorino geraspt', price: '€2,49' },
   { tier: 'premium', name: 'Pecorino DOP', price: '€4,79' },
-];
-
-const MY_STORES = [
-  { monogram: 'AH', name: 'Albert Heijn' },
-  { monogram: 'Ju', name: 'Jumbo' },
-  { monogram: 'Pl', name: 'Plus' },
-];
-
-const NEARBY_STORES = [
-  { monogram: 'Di', name: 'Dirk' },
-  { monogram: 'Li', name: 'Lidl' },
 ];
 
 export default function ProfileScreen() {
@@ -37,169 +28,225 @@ export default function ProfileScreen() {
     bottom: safeAreaInsets.bottom + BottomTabInset + Spacing.three,
   };
   const theme = useTheme();
-  const { t } = useTranslation();
-  const [tier, setTier] = useState<Tier>('balans');
+  const { t, locale, setLocale } = useTranslation();
+  const { data: profile } = useProfileQuery();
+  const updateTier = useUpdateShopperTierMutation();
+  const { data: allStores = [] } = useStoresQuery();
+  const { data: myStores = [] } = useUserStoresQuery();
+  const addUserStore = useAddUserStoreMutation();
+  const removeUserStore = useRemoveUserStoreMutation();
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
+  const tier = profile?.shopperTier ?? 'balans';
+  const myChainSlugs = new Set(myStores.map((store) => store.chainSlug));
+  const nearbyStores = allStores.filter((store) => !myChainSlugs.has(store.slug));
+
+  // See (tabs)/index.tsx for why iOS now needs explicit padding (headless tab
+  // bar, no more NativeTabs auto content-inset-adjustment).
   const contentPlatformStyle = Platform.select({
+    ios: { paddingTop: insets.top, paddingBottom: insets.bottom },
     android: { paddingTop: insets.top, paddingBottom: insets.bottom },
     web: { paddingTop: Spacing.six, paddingBottom: Spacing.four },
   });
 
-  const tierLabel: Record<Tier, string> = {
+  const tierLabel: Record<ShopperTier, string> = {
     budget: t.profile.tierBudget,
     balans: t.profile.tierBalans,
     premium: t.profile.tierPremium,
   };
 
   return (
-    <ScrollView
-      style={[styles.scrollView, { backgroundColor: theme.background }]}
-      contentInset={insets}
-      contentContainerStyle={[styles.contentContainer, contentPlatformStyle]}>
-      <ThemedView style={styles.container}>
-        <View style={styles.header}>
-          <ThemedText type="title">{t.profile.title}</ThemedText>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => {}}
-            style={[styles.gearButton, { backgroundColor: theme.backgroundElement }]}>
-            <ThemedText type="default" themeColor="textSecondary">
-              ⚙
-            </ThemedText>
-          </Pressable>
-        </View>
+    <TabScreenTransition routeIndex={3}>
+      <ScrollView
+        style={[styles.scrollView, { backgroundColor: theme.background }]}
+        contentContainerStyle={[styles.contentContainer, contentPlatformStyle]}
+      >
+        <ThemedView style={styles.container}>
+          <View style={styles.header}>
+            <ThemedText type="title">{t.profile.title}</ThemedText>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setIsSettingsOpen(true)}
+              style={[styles.gearButton, { backgroundColor: theme.backgroundElement }]}
+            >
+              <ThemedText type="default" themeColor="textSecondary">
+                ⚙
+              </ThemedText>
+            </Pressable>
+          </View>
 
-        <View style={styles.section}>
-          <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionLabel}>
-            {t.profile.shopperProfile}
-          </ThemedText>
-          <SegmentedControl
-            options={[
-              { value: 'budget', label: t.profile.tierBudget },
-              { value: 'balans', label: t.profile.tierBalans },
-              { value: 'premium', label: t.profile.tierPremium },
-            ]}
-            value={tier}
-            onChange={(value) => setTier(value as Tier)}
-          />
-          <ThemedText type="small" themeColor="textSecondary">
-            {t.profile.tierExplain}
-          </ThemedText>
-
-          <View style={[styles.exampleCard, { backgroundColor: theme.backgroundElement }]}>
-            <ThemedText type="smallBold">{t.profile.exampleFor('Pecorino Romano')}</ThemedText>
-            <View style={styles.optionRow}>
-              {EXAMPLE_OPTIONS.map((option) => {
-                const active = option.tier === tier;
-                return (
-                  <View
-                    key={option.tier}
-                    style={[
-                      styles.optionTile,
-                      { backgroundColor: theme.background, borderColor: theme.backgroundSelected },
-                      active && {
-                        borderColor: BrandColors.green,
-                        backgroundColor: theme.chipCheapestBg,
-                      },
-                      !active && styles.optionTileInactive,
-                    ]}>
-                    <View style={styles.optionTierRow}>
-                      <ThemedText
-                        type="small"
-                        style={[
-                          styles.optionTierLabel,
-                          { color: active ? theme.chipCheapestText : theme.textSecondary },
-                        ]}>
-                        {tierLabel[option.tier].toUpperCase()}
+          <Modal visible={isSettingsOpen} animationType="slide" transparent onRequestClose={() => setIsSettingsOpen(false)}>
+            <Pressable style={styles.modalBackdrop} onPress={() => setIsSettingsOpen(false)}>
+              <Pressable onPress={(e) => e.stopPropagation()}>
+                <ThemedView style={styles.modalSheet}>
+                  <View style={styles.modalHeader}>
+                    <ThemedText type="subtitle">{t.settings.title}</ThemedText>
+                    <Pressable onPress={() => setIsSettingsOpen(false)} hitSlop={Spacing.two}>
+                      <ThemedText type="smallBold" themeColor="textSecondary">
+                        ✕
                       </ThemedText>
-                      {active ? (
-                        <ThemedText type="small" style={{ color: theme.chipCheapestText }}>
-                          ✓
-                        </ThemedText>
-                      ) : null}
-                    </View>
-                    <ThemedText
-                      type="smallBold"
-                      style={active ? { color: theme.chipCheapestText } : undefined}
-                      numberOfLines={2}>
-                      {option.name}
-                    </ThemedText>
-                    <ThemedText
-                      type="small"
-                      tabularNums
-                      style={active ? { color: theme.chipCheapestText } : undefined}>
-                      {option.price}
-                    </ThemedText>
+                    </Pressable>
                   </View>
-                );
-              })}
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionLabel}>
-            {t.profile.myStores}
-          </ThemedText>
-          <View style={styles.chipRow}>
-            {MY_STORES.map((store) => (
-              <View
-                key={store.monogram}
-                style={[
-                  styles.storePill,
-                  { backgroundColor: theme.chipCheapestBg, borderColor: BrandColors.green },
-                ]}>
-                <StoreChip monogram={store.monogram} isCheapest size={24} />
-                <ThemedText type="smallBold" style={{ color: theme.chipCheapestText }}>
-                  {store.name}
-                </ThemedText>
-                <ThemedText type="small" style={{ color: theme.chipCheapestText }}>
-                  ✓
-                </ThemedText>
-              </View>
-            ))}
-          </View>
-
-          <ThemedText type="small" themeColor="textSecondary">
-            {t.profile.nearby}
-          </ThemedText>
-          <View style={styles.chipRow}>
-            {NEARBY_STORES.map((store) => (
-              <Pressable
-                key={store.monogram}
-                accessibilityRole="button"
-                onPress={() => {}}
-                style={[styles.storePillOutline, { borderColor: theme.backgroundSelected }]}>
-                <StoreChip monogram={store.monogram} size={24} />
-                <ThemedText type="smallBold" themeColor="textSecondary">
-                  {store.name}
-                </ThemedText>
-                <ThemedText type="small" themeColor="textSecondary">
-                  +
-                </ThemedText>
+                  <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionLabel}>
+                    {t.settings.language}
+                  </ThemedText>
+                  <SegmentedControl
+                    options={[
+                      { value: 'nl', label: 'Nederlands' },
+                      { value: 'en', label: 'English' },
+                    ]}
+                    value={locale}
+                    onChange={(value) => setLocale(value as Locale)}
+                  />
+                </ThemedView>
               </Pressable>
-            ))}
-          </View>
-        </View>
+            </Pressable>
+          </Modal>
 
-        <View style={[styles.alternativesRow, { backgroundColor: theme.backgroundElement }]}>
-          <View style={styles.alternativesText}>
-            <View style={styles.alternativesTitleRow}>
-              <ThemedText type="smallBold">{t.profile.openToAlternatives}</ThemedText>
-              <View style={[styles.comingSoonBadge, { backgroundColor: theme.backgroundSelected }]}>
-                <ThemedText type="small" themeColor="textSecondary" style={styles.comingSoonText}>
-                  {t.profile.comingSoon}
-                </ThemedText>
+          <View style={styles.section}>
+            <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionLabel}>
+              {t.profile.shopperProfile}
+            </ThemedText>
+            <SegmentedControl
+              options={[
+                { value: 'budget', label: t.profile.tierBudget },
+                { value: 'balans', label: t.profile.tierBalans },
+                { value: 'premium', label: t.profile.tierPremium },
+              ]}
+              value={tier}
+              onChange={(value) => updateTier.mutate(value as ShopperTier)}
+            />
+            <ThemedText type="small" themeColor="textSecondary">
+              {t.profile.tierExplain}
+            </ThemedText>
+
+            <View style={[styles.exampleCard, { backgroundColor: theme.backgroundElement }]}>
+              <ThemedText type="smallBold">{t.profile.exampleFor('Pecorino Romano')}</ThemedText>
+              <View style={styles.optionRow}>
+                {EXAMPLE_OPTIONS.map((option) => {
+                  const active = option.tier === tier;
+                  return (
+                    <View
+                      key={option.tier}
+                      style={[
+                        styles.optionTile,
+                        {
+                          backgroundColor: theme.background,
+                          borderColor: theme.backgroundSelected,
+                        },
+                        active && {
+                          borderColor: BrandColors.green,
+                          backgroundColor: theme.chipCheapestBg,
+                        },
+                        !active && styles.optionTileInactive,
+                      ]}
+                    >
+                      <View style={styles.optionTierRow}>
+                        <ThemedText
+                          type="small"
+                          style={[
+                            styles.optionTierLabel,
+                            {
+                              color: active ? theme.chipCheapestText : theme.textSecondary,
+                            },
+                          ]}
+                        >
+                          {tierLabel[option.tier].toUpperCase()}
+                        </ThemedText>
+                        {active ? (
+                          <ThemedText type="small" style={{ color: theme.chipCheapestText }}>
+                            ✓
+                          </ThemedText>
+                        ) : null}
+                      </View>
+                      <ThemedText type="smallBold" style={active ? { color: theme.chipCheapestText } : undefined} numberOfLines={2}>
+                        {option.name}
+                      </ThemedText>
+                      <ThemedText type="small" tabularNums style={active ? { color: theme.chipCheapestText } : undefined}>
+                        {option.price}
+                      </ThemedText>
+                    </View>
+                  );
+                })}
               </View>
             </View>
-            <ThemedText type="small" themeColor="textSecondary">
-              {t.profile.openToAlternativesSubtitle}
-            </ThemedText>
           </View>
-          <Toggle value={false} disabled />
-        </View>
-      </ThemedView>
-    </ScrollView>
+
+          <View style={styles.section}>
+            <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionLabel}>
+              {t.profile.myStores}
+            </ThemedText>
+            <View style={styles.chipRow}>
+              {myStores.map((store) => (
+                <Pressable
+                  key={store.chainSlug}
+                  accessibilityRole="button"
+                  onPress={() => removeUserStore.mutate(store.chainSlug)}
+                  style={[
+                    styles.storePill,
+                    {
+                      backgroundColor: theme.chipCheapestBg,
+                      borderColor: BrandColors.green,
+                    },
+                  ]}
+                >
+                  <StoreChip slug={store.chainSlug} displayName={store.displayName} monogram={store.monogram} isCheapest size={24} />
+                  <ThemedText type="smallBold" style={{ color: theme.chipCheapestText }}>
+                    {store.displayName}
+                  </ThemedText>
+                  <ThemedText type="small" style={{ color: theme.chipCheapestText }}>
+                    ✕
+                  </ThemedText>
+                </Pressable>
+              ))}
+            </View>
+
+            {nearbyStores.length > 0 && (
+              <>
+                <ThemedText type="small" themeColor="textSecondary">
+                  {t.profile.nearby}
+                </ThemedText>
+                <View style={styles.chipRow}>
+                  {nearbyStores.map((store) => (
+                    <Pressable
+                      key={store.slug}
+                      accessibilityRole="button"
+                      onPress={() => addUserStore.mutate(store.slug)}
+                      style={[styles.storePillOutline, { borderColor: theme.backgroundSelected }]}
+                    >
+                      <StoreChip slug={store.slug} displayName={store.displayName} monogram={store.monogram} size={24} />
+                      <ThemedText type="smallBold" themeColor="textSecondary">
+                        {store.displayName}
+                      </ThemedText>
+                      <ThemedText type="small" themeColor="textSecondary">
+                        +
+                      </ThemedText>
+                    </Pressable>
+                  ))}
+                </View>
+              </>
+            )}
+          </View>
+
+          <View style={[styles.alternativesRow, { backgroundColor: theme.backgroundElement }]}>
+            <View style={styles.alternativesText}>
+              <View style={styles.alternativesTitleRow}>
+                <ThemedText type="smallBold">{t.profile.openToAlternatives}</ThemedText>
+                <View style={[styles.comingSoonBadge, { backgroundColor: theme.backgroundSelected }]}>
+                  <ThemedText type="small" themeColor="textSecondary" style={styles.comingSoonText}>
+                    {t.profile.comingSoon}
+                  </ThemedText>
+                </View>
+              </View>
+              <ThemedText type="small" themeColor="textSecondary">
+                {t.profile.openToAlternativesSubtitle}
+              </ThemedText>
+            </View>
+            <Toggle value={false} disabled />
+          </View>
+        </ThemedView>
+      </ScrollView>
+    </TabScreenTransition>
   );
 }
 
@@ -225,6 +272,24 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  modalBackdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(20, 17, 12, 0.5)',
+  },
+  modalSheet: {
+    width: '100%',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: Spacing.four,
+    paddingBottom: Spacing.six,
+    gap: Spacing.three,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   section: { gap: Spacing.three },
   sectionLabel: { letterSpacing: 0.5 },

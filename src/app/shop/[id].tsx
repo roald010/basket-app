@@ -4,7 +4,9 @@ import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
+import { BackButton } from '@/components/ui/back-button';
 import { PriceText } from '@/components/ui/price-text';
+import { SkeletonCard } from '@/components/ui/skeleton';
 import { StoreChip } from '@/components/ui/store-chip';
 import { useStoresQuery } from '@/features/stores/api';
 import {
@@ -89,7 +91,8 @@ export default function ShoppingScreen() {
 
   const contentPlatformStyle = Platform.select({
     android: { paddingTop: insets.top, paddingBottom: insets.bottom + Spacing.four },
-    default: { paddingTop: Spacing.two, paddingBottom: insets.bottom + BottomTabInset },
+    ios: { paddingTop: insets.top, paddingBottom: insets.bottom + BottomTabInset },
+    web: { paddingTop: Spacing.six, paddingBottom: Spacing.four },
   });
 
   return (
@@ -98,13 +101,11 @@ export default function ShoppingScreen() {
       contentContainerStyle={[styles.contentContainer, contentPlatformStyle]}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()} hitSlop={Spacing.two}>
-            <ThemedText type="smallBold">‹</ThemedText>
-          </Pressable>
+          <BackButton onPress={() => router.back()} />
         </View>
 
         <View style={styles.titleBlock}>
-          <ThemedText type="title">{listName ?? t.nav.basket}</ThemedText>
+          <ThemedText type="title">{listName ?? t.capture.newListDefaultName}</ThemedText>
           {total > 0 && (
             <ThemedText type="small" themeColor="textSecondary">
               {t.shopping.total} <PriceText amount={total} type="small" />
@@ -112,7 +113,13 @@ export default function ShoppingScreen() {
           )}
         </View>
 
-        {isLoading && <ThemedText themeColor="textSecondary">...</ThemedText>}
+        {isLoading && (
+          <View style={styles.section}>
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+          </View>
+        )}
         {isError && <ThemedText themeColor="textSecondary">{t.review.commitError}</ThemedText>}
         {!isLoading && !isError && items.length === 0 && (
           <ThemedText themeColor="textSecondary">{t.shopping.empty}</ThemedText>
@@ -124,7 +131,7 @@ export default function ShoppingScreen() {
             <View key={group.chainSlug} style={styles.section}>
               <View style={styles.sectionHeader}>
                 <View style={styles.sectionHeaderLeft}>
-                  {store && <StoreChip monogram={store.monogram} isCheapest size={28} />}
+                  {store && <StoreChip slug={store.slug} displayName={store.displayName} monogram={store.monogram} isCheapest size={28} />}
                   <ThemedText type="smallBold">{store?.displayName ?? group.chainSlug}</ThemedText>
                 </View>
                 <PriceText amount={group.subtotal} type="smallBold" />

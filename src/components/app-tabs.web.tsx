@@ -12,11 +12,19 @@ import { Pressable, View, StyleSheet } from 'react-native';
 import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
 
+import { useCreateListMutation } from '@/features/lists/api';
 import { BrandColors, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTranslation } from '@/i18n';
 
 export default function AppTabs() {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
+  const createList = useCreateListMutation();
+
+  function handleNewList() {
+    createList.mutate(locale, {
+      onSuccess: ({ id }) => router.push(`/list/${id}`),
+    });
+  }
 
   return (
     <Tabs>
@@ -30,14 +38,15 @@ export default function AppTabs() {
             <TabButton>{t.nav.lists}</TabButton>
           </TabTrigger>
           {/* Center FAB -- BottomAccessory (native, iOS 26+ only) has no web
-              equivalent anyway, so this is just a normal styled button here. */}
-          <Pressable onPress={() => router.push('/capture')} style={styles.fabPressable}>
+              equivalent anyway, so this is just a normal styled button here.
+              Creates an empty list and lands on its Hub (see app-tabs.tsx). */}
+          <Pressable onPress={handleNewList} disabled={createList.isPending} style={styles.fabPressable}>
             <View style={styles.fabPill}>
               <ThemedText type="smallBold" style={styles.fabIcon}>
                 +
               </ThemedText>
               <ThemedText type="smallBold" style={styles.fabLabel}>
-                {t.nav.basket}
+                {t.nav.newList}
               </ThemedText>
             </View>
           </Pressable>

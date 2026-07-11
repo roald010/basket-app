@@ -3,142 +3,170 @@ import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
+import { NavIcon } from '@/components/ui/nav-icon';
 import { PriceText, formatEUR } from '@/components/ui/price-text';
-import { StoreChip } from '@/components/ui/store-chip';
+import { TabScreenTransition } from '@/components/ui/tab-screen-transition';
+import { useCreateListMutation, useListsQuery } from '@/features/lists/api';
+import { useProfileQuery } from '@/features/profile/api';
+import { useMonthlySavingsQuery } from '@/features/savings/api';
 import { BottomTabInset, BrandColors, Colors, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useTranslation } from '@/i18n';
-
-type RecentList = {
-  id: string;
-  title: string;
-  chips: string[];
-  recipes: number;
-  stores: number;
-  price: number;
-  savings?: number;
-};
-
-const RECENT_LISTS: RecentList[] = [
-  { id: 'weekmenu', title: 'Weekmenu', chips: ['AH', 'Ju'], recipes: 2, stores: 2, price: 19.4, savings: -2.4 },
-  { id: 'bbq', title: 'Verjaardag BBQ', chips: ['Ju'], recipes: 4, stores: 1, price: 47.3 },
-];
+import { formatListDate } from '@/lib/format-date';
 
 export default function HomeScreen() {
   const theme = useTheme();
-  const { t } = useTranslation();
+  const { t, locale, setLocale } = useTranslation();
   const safeAreaInsets = useSafeAreaInsets();
+  const { data: lists } = useListsQuery();
+  const { data: profile } = useProfileQuery();
+  const { data: monthlySavings } = useMonthlySavingsQuery();
+  const createList = useCreateListMutation();
+  const recentLists = lists?.slice(0, 2) ?? [];
+
+  function handleNewList() {
+    createList.mutate(locale, {
+      onSuccess: ({ id }) => router.push(`/list/${id}`),
+    });
+  }
+
+  const hour = new Date().getHours();
+  const daypart = hour < 6 || hour >= 18 ? 'evening' : hour < 12 ? 'morning' : 'afternoon';
+  const currentMonthLabel = new Intl.DateTimeFormat(locale === 'nl' ? 'nl-NL' : 'en-US', { month: 'long' }).format(new Date());
   const insets = {
     ...safeAreaInsets,
     bottom: safeAreaInsets.bottom + BottomTabInset + Spacing.three,
   };
 
+  // `contentInset` used to be enough on iOS because NativeTabs auto-enabled
+  // contentInsetAdjustmentBehavior on the first nested ScrollView -- now that the
+  // tab bar is the headless expo-router/ui Tabs (see app-tabs.tsx), that automatic
+  // behavior is gone, so iOS needs the same explicit padding Android already used.
   const contentPlatformStyle = Platform.select({
+    ios: { paddingTop: insets.top, paddingBottom: insets.bottom },
     android: { paddingTop: insets.top, paddingBottom: insets.bottom },
     web: { paddingTop: Spacing.six, paddingBottom: Spacing.four },
   });
 
   return (
-    <ScrollView
-      style={[styles.scrollView, { backgroundColor: theme.background }]}
-      contentInset={insets}
-      contentContainerStyle={[styles.contentContainer, contentPlatformStyle]}>
-      <View style={styles.container}>
-        <View style={styles.headerRow}>
-          <View style={styles.headerText}>
-            <ThemedText type="small" themeColor="textSecondary">
-              {t.home.greeting('Sanne')}
-            </ThemedText>
-            <ThemedText type="subtitle">{t.home.title}</ThemedText>
-          </View>
-          <View style={styles.headerActions}>
-            <View style={[styles.langChip, { backgroundColor: theme.backgroundElement }]}>
-              <ThemedText style={styles.langGlobe}>🌐</ThemedText>
-              <ThemedText type="smallBold" themeColor="textSecondary">
-                NL
+    <TabScreenTransition routeIndex={0}>
+      <ScrollView
+        style={[styles.scrollView, { backgroundColor: theme.background }]}
+        contentContainerStyle={[styles.contentContainer, contentPlatformStyle]}
+      >
+        <View style={styles.container}>
+          <View style={styles.headerRow}>
+            <View style={styles.headerText}>
+              <ThemedText type="small" themeColor="textSecondary">
+                {t.home.greeting(daypart, profile?.displayName ?? null)}
               </ThemedText>
+              <ThemedText type="subtitle">{t.home.title}</ThemedText>
             </View>
-            <View style={[styles.avatar, { backgroundColor: theme.chipNeutralBg }]}>
-              <ThemedText type="smallBold" style={[styles.avatarLetter, { color: BrandColors.green }]}>
-                S
-              </ThemedText>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.savingsRibbon}>
-          <View style={styles.savingsIcon}>
-            <ThemedText style={styles.savingsGlyph}>📈</ThemedText>
-          </View>
-          <View style={styles.savingsText}>
-            <ThemedText type="small" style={styles.onGreenMuted}>
-              {t.home.savingsLabel('mei')}
-            </ThemedText>
-            <ThemedText type="subtitle" tabularNums style={styles.savingsAmount}>
-              {formatEUR(11.4)}
-            </ThemedText>
-          </View>
-          <Pressable style={styles.seeHow} hitSlop={Spacing.two}>
-            <ThemedText type="small" style={styles.onGreenMuted}>
-              {t.home.seeHow}
-            </ThemedText>
-            <ThemedText style={styles.seeHowChevron}>›</ThemedText>
-          </Pressable>
-        </View>
-
-        <Pressable style={styles.ctaCard} onPress={() => router.push('/capture')}>
-          <View style={styles.ctaIcon}>
-            <ThemedText style={styles.ctaPlus}>+</ThemedText>
-          </View>
-          <View style={styles.ctaText}>
-            <ThemedText type="smallBold" style={styles.onInk}>
-              {t.home.newList}
-            </ThemedText>
-            <ThemedText type="small" style={styles.onInkMuted}>
-              {t.home.newListSubtitle}
-            </ThemedText>
-          </View>
-        </Pressable>
-
-        <View style={styles.sectionHeader}>
-          <ThemedText type="smallBold">{t.home.recentLists}</ThemedText>
-          <Pressable hitSlop={Spacing.two} onPress={() => router.push('/lists')}>
-            <ThemedText type="smallBold" style={styles.link}>
-              {t.home.all}
-            </ThemedText>
-          </Pressable>
-        </View>
-
-        <View style={styles.listStack}>
-          {RECENT_LISTS.map((list) => (
-            <View key={list.id} style={[styles.listCard, { backgroundColor: theme.background, borderColor: theme.backgroundElement }]}>
-              <View style={[styles.listIcon, { backgroundColor: theme.backgroundElement }]}>
-                <ThemedText style={styles.listGlyph}>🛍️</ThemedText>
-              </View>
-              <View style={styles.listText}>
-                <ThemedText type="smallBold" numberOfLines={1}>
-                  {list.title}
+            <View style={styles.headerActions}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t.home.switchLanguage}
+                hitSlop={Spacing.two}
+                onPress={() => setLocale(locale === 'nl' ? 'en' : 'nl')}
+                style={[styles.langChip, { backgroundColor: theme.backgroundElement }]}
+              >
+                <ThemedText style={styles.langGlobe}>🌐</ThemedText>
+                <ThemedText type="smallBold" themeColor="textSecondary">
+                  {locale.toUpperCase()}
                 </ThemedText>
-                <View style={styles.listMeta}>
-                  <View style={styles.listChips}>
-                    {list.chips.map((chip) => (
-                      <StoreChip key={chip} monogram={chip} isCheapest size={22} />
-                    ))}
-                  </View>
+              </Pressable>
+              <View style={[styles.avatar, { backgroundColor: theme.chipNeutralBg }]}>
+                {profile?.displayName ? (
+                  <ThemedText type="smallBold" style={[styles.avatarLetter, { color: BrandColors.green }]}>
+                    {profile.displayName.charAt(0).toUpperCase()}
+                  </ThemedText>
+                ) : (
+                  <NavIcon name="profile" color={BrandColors.green} size={22} />
+                )}
+              </View>
+            </View>
+          </View>
+
+          {monthlySavings != null && monthlySavings > 0 && (
+            <View style={styles.savingsRibbon}>
+              <View style={styles.savingsIcon}>
+                <ThemedText style={styles.savingsGlyph}>📈</ThemedText>
+              </View>
+              <View style={styles.savingsText}>
+                <ThemedText type="small" style={styles.onGreenMuted}>
+                  {t.home.savingsLabel(currentMonthLabel)}
+                </ThemedText>
+                <ThemedText type="subtitle" tabularNums style={styles.savingsAmount}>
+                  {formatEUR(monthlySavings)}
+                </ThemedText>
+              </View>
+              <Pressable style={styles.seeHow} hitSlop={Spacing.two}>
+                <ThemedText type="small" style={styles.onGreenMuted}>
+                  {t.home.seeHow}
+                </ThemedText>
+                <ThemedText style={styles.seeHowChevron}>›</ThemedText>
+              </Pressable>
+            </View>
+          )}
+
+          <Pressable style={styles.ctaCard} onPress={handleNewList} disabled={createList.isPending}>
+            <View style={styles.ctaIcon}>
+              <ThemedText style={styles.ctaPlus}>+</ThemedText>
+            </View>
+            <View style={styles.ctaText}>
+              <ThemedText type="smallBold" style={styles.onInk}>
+                {t.home.newList}
+              </ThemedText>
+              <ThemedText type="small" style={styles.onInkMuted}>
+                {t.home.newListSubtitle}
+              </ThemedText>
+            </View>
+          </Pressable>
+
+          <View style={styles.sectionHeader}>
+            <ThemedText type="smallBold">{t.home.recentLists}</ThemedText>
+            <Pressable hitSlop={Spacing.two} onPress={() => router.push('/lists')}>
+              <ThemedText type="smallBold" style={styles.link}>
+                {t.home.all}
+              </ThemedText>
+            </Pressable>
+          </View>
+
+          <View style={styles.listStack}>
+            {recentLists.map((list) => (
+              <Pressable
+                key={list.id}
+                onPress={() => router.push(`/list/${list.id}`)}
+                style={[
+                  styles.listCard,
+                  {
+                    backgroundColor: theme.background,
+                    borderColor: theme.backgroundElement,
+                  },
+                ]}
+              >
+                <View style={[styles.listIcon, { backgroundColor: theme.backgroundElement }]}>
+                  <NavIcon name="lists" color={theme.textSecondary} />
+                </View>
+                <View style={styles.listText}>
+                  <ThemedText type="smallBold" numberOfLines={1}>
+                    {list.name}
+                  </ThemedText>
                   <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
-                    {`${t.home.recipesCount(list.recipes)} · ${t.home.storesCount(list.stores)}`}
+                    {t.home.recipesCount(list.recipeCount)} · {t.lists.createdOn(formatListDate(list.createdAt, locale))}
                   </ThemedText>
                 </View>
-              </View>
-              <View style={styles.priceColumn}>
-                <PriceText amount={list.price} />
-                {list.savings !== undefined && <PriceText amount={list.savings} signed type="small" />}
-              </View>
-            </View>
-          ))}
+                {list.bestSingleStoreTotal != null && (
+                  <View style={styles.priceColumn}>
+                    <PriceText amount={list.bestSingleStoreTotal} />
+                  </View>
+                )}
+              </Pressable>
+            ))}
+          </View>
         </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </TabScreenTransition>
   );
 }
 
@@ -288,9 +316,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  listGlyph: {
-    fontSize: 20,
   },
   listText: {
     flex: 1,

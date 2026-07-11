@@ -1,6 +1,7 @@
-import { Pressable, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
+import { AnimatedPressable } from '@/components/ui/animated-pressable';
 import { formatEUR } from '@/components/ui/price-text';
 import { BrandColors, Spacing } from '@/constants/theme';
 
@@ -18,9 +19,10 @@ export type TotalBannerProps = {
  */
 export function TotalBanner({ ctaLabel, amount, onPress, disabled }: TotalBannerProps) {
   return (
-    <Pressable
+    <AnimatedPressable
       onPress={onPress}
       disabled={disabled}
+      scaleTo={0.98}
       style={[styles.bar, { opacity: disabled ? 0.5 : 1 }]}>
       <ThemedText type="smallBold" style={styles.label}>
         {ctaLabel}
@@ -28,7 +30,7 @@ export function TotalBanner({ ctaLabel, amount, onPress, disabled }: TotalBanner
       <ThemedText type="title" tabularNums style={styles.amount}>
         {formatEUR(amount)}
       </ThemedText>
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 

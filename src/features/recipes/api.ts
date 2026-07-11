@@ -1,6 +1,9 @@
 import { useMutation } from '@tanstack/react-query';
 
 import type { DraftIngredient } from '@/features/capture/draft-store';
+import { seedStaples } from '@/features/lists/api';
+import type { Locale } from '@/i18n';
+import { formatNewListName } from '@/lib/format-date';
 import { supabase } from '@/lib/supabase';
 
 export type ParsedIngredient = { name: string; quantity: number; unit: string };
@@ -26,8 +29,9 @@ export function useParseRecipeMutation() {
 }
 
 export type CommitRecipeInput = {
-  /** Existing list to add to, or null to start a brand-new list (gets the DB's default name -- rename lands with the List Hub in M4). */
+  /** Existing list to add to, or null to start a brand-new list (gets a date-based default name -- rename lands with the List Hub in M4). */
   listId: string | null;
+  locale: Locale;
   title: string;
   originalText: string;
   servingsSource: number;
@@ -35,10 +39,15 @@ export type CommitRecipeInput = {
   ingredients: DraftIngredient[];
 };
 
-async function resolveListId(listId: string | null, userId: string): Promise<string> {
+async function resolveListId(listId: string | null, userId: string, locale: Locale): Promise<string> {
   if (listId) return listId;
-  const { data: list, error } = await supabase.from('lists').insert({ user_id: userId }).select('id').single();
+  const { data: list, error } = await supabase
+    .from('lists')
+    .insert({ user_id: userId, name: formatNewListName(locale) })
+    .select('id')
+    .single();
   if (error) throw error;
+  await seedStaples(list.id, userId);
   return list.id;
 }
 
@@ -48,7 +57,7 @@ async function commitRecipe(input: CommitRecipeInput): Promise<{ listId: string 
   } = await supabase.auth.getSession();
   if (!session) throw new Error('No active Supabase session');
 
-  const listId = await resolveListId(input.listId, session.user.id);
+  const listId = await resolveListId(input.listId, session.user.id, input.locale);
 
   const { data: recipe, error: recipeError } = await supabase
     .from('recipes')

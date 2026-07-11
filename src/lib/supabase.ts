@@ -34,11 +34,24 @@ export const supabase = createClient(supabaseUrl ?? 'https://placeholder.supabas
  */
 export async function ensureSession() {
   const {
-    data: { session },
+    data: { session: existingSession },
   } = await supabase.auth.getSession();
-  if (session) return session;
 
-  const { data, error } = await supabase.auth.signInAnonymously();
-  if (error) throw error;
-  return data.session;
+  let session = existingSession;
+  if (!session) {
+    const { data, error } = await supabase.auth.signInAnonymously();
+    if (error) throw error;
+    session = data.session;
+  }
+  if (!session) throw new Error('Failed to establish a Supabase session');
+
+  // profiles has no row-creation trigger -- without this, shopper_tier/display_name
+  // reads return nothing and match_list_items()'s tier bonus never activates.
+  // ignoreDuplicates makes this a no-op for a returning session.
+  const { error: profileError } = await supabase
+    .from('profiles')
+    .upsert({ id: session.user.id }, { onConflict: 'id', ignoreDuplicates: true });
+  if (profileError) throw profileError;
+
+  return session;
 }

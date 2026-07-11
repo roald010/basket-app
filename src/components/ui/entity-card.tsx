@@ -1,6 +1,7 @@
-import { Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
+import { StyleSheet, View, type ViewStyle } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
+import { AnimatedPressable } from '@/components/ui/animated-pressable';
 import { PriceText } from '@/components/ui/price-text';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -23,12 +24,9 @@ export type EntityCardProps = {
  */
 export function EntityCard({ icon, title, subtitle, chips, price, priceCaption, onPress, style }: EntityCardProps) {
   const theme = useTheme();
-  const Wrapper = onPress ? Pressable : View;
 
-  return (
-    <Wrapper
-      onPress={onPress}
-      style={[styles.card, { backgroundColor: theme.background, borderColor: theme.backgroundElement }, style]}>
+  const content = (
+    <>
       <View style={[styles.icon, { backgroundColor: theme.backgroundElement }]}>{icon}</View>
       <View style={styles.text}>
         <ThemedText type="smallBold" numberOfLines={1}>
@@ -51,7 +49,17 @@ export function EntityCard({ icon, title, subtitle, chips, price, priceCaption, 
           )}
         </View>
       )}
-    </Wrapper>
+    </>
+  );
+
+  const cardStyle = [styles.card, { backgroundColor: theme.background, borderColor: theme.backgroundElement }, style];
+
+  if (!onPress) return <View style={cardStyle}>{content}</View>;
+
+  return (
+    <AnimatedPressable onPress={onPress} scaleTo={0.98} style={cardStyle}>
+      {content}
+    </AnimatedPressable>
   );
 }
 

@@ -47,8 +47,12 @@ truth for color, type, and spacing:
   `useTheme()` hook (`src/hooks/use-theme.ts`), never imported as raw hex in components.
 - `BrandColors` — fixed-hue brand constants (green/clementine/amber) that do **not**
   flip between light/dark, unlike `Colors`. Green specifically means "cheapest/selected
-  store" and must never be used to imply a real supermarket's brand color — store
-  identity elsewhere is neutral grey monogram chips (`components/ui/store-chip.tsx`).
+  store" — `isCheapest` is shown as a border ring on real logo chips (never a fill tint,
+  which would clash with the logo's own colors) or a filled background on the monogram
+  fallback. `components/ui/store-chip.tsx` renders real chain logos (`features/stores/
+  store-logos.ts`, sourced from Wikimedia Commons) for the chains that have a clean SVG
+  source, falling back to a neutral grey monogram chip for the couple that don't
+  (Hoogvliet, Poiesz as of this writing). Tapping any chip shows the full chain name.
 - `Fonts` — system fonts (`sans`/`serif`/`rounded`/`mono`, used for the `code` text type)
   plus `Fonts.display`/`Fonts.body` (Bricolage Grotesque / Hanken Grotesk, loaded via
   `useFonts()` in `src/app/_layout.tsx`, which blocks the splash-hide until ready — see
