@@ -8,7 +8,6 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BackButton } from '@/components/ui/back-button';
 import { Dialog } from '@/components/ui/dialog';
-import { EntityCard } from '@/components/ui/entity-card';
 import { Expandable } from '@/components/ui/expandable';
 import { HonestGapCard } from '@/components/ui/honest-gap-card';
 import { ListItemRow } from '@/components/ui/list-item-row';
@@ -473,12 +472,14 @@ export default function ListHubScreen() {
               )}
             </View>
 
+            {/* Push the primary Compare CTA to the bottom of the screen so it sits next
+                to where its bottom sheet rises from; the spacer collapses to nothing
+                once the list is long enough to scroll. */}
+            <View style={styles.footerSpacer} />
             {hasItems && selectedCombo ? (
-              <EntityCard
-                icon={<ThemedText>🛒</ThemedText>}
-                title={t.listHub.compareStores}
-                subtitle={t.lists.fromOneStore}
-                price={combos[0]?.total}
+              <TotalBanner
+                ctaLabel={t.listHub.compareStores}
+                amount={combos[0]?.total ?? 0}
                 onPress={() => setIsCompareOpen(true)}
               />
             ) : (
@@ -575,7 +576,7 @@ export default function ListHubScreen() {
 
 const styles = StyleSheet.create({
   scrollView: { flex: 1 },
-  contentContainer: { flexDirection: 'row', justifyContent: 'center' },
+  contentContainer: { flexGrow: 1, flexDirection: 'row', justifyContent: 'center' },
   container: {
     maxWidth: MaxContentWidth,
     flexGrow: 1,
@@ -617,6 +618,10 @@ const styles = StyleSheet.create({
   },
   section: {
     gap: Spacing.two,
+  },
+  footerSpacer: {
+    flexGrow: 1,
+    minHeight: Spacing.four,
   },
   comboCard: {
     borderRadius: 16,
