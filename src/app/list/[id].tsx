@@ -1,11 +1,13 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
 import { BackButton } from '@/components/ui/back-button';
+import { EntityCard } from '@/components/ui/entity-card';
 import { Expandable } from '@/components/ui/expandable';
 import { HonestGapCard } from '@/components/ui/honest-gap-card';
 import { ListItemRow } from '@/components/ui/list-item-row';
@@ -148,6 +150,7 @@ export default function ListHubScreen() {
   const [expandedRecipeIds, setExpandedRecipeIds] = useState<Set<string>>(new Set());
   const [isAddingProduct, setIsAddingProduct] = useState(false);
   const [newProductName, setNewProductName] = useState('');
+  const [isCompareOpen, setIsCompareOpen] = useState(false);
 
   function toggleRecipeExpanded(recipeId: string) {
     setExpandedRecipeIds((current) => {
@@ -214,7 +217,10 @@ export default function ListHubScreen() {
         baselineSingleStoreTotal: singleStoreTotal ?? null,
       },
       {
-        onSuccess: () => router.push({ pathname: '/shop/[id]', params: { id, listName: list?.name ?? '' } }),
+        onSuccess: () => {
+          setIsCompareOpen(false);
+          router.push({ pathname: '/shop/[id]', params: { id, listName: list?.name ?? '' } });
+        },
       }
     );
   }
@@ -415,10 +421,40 @@ export default function ListHubScreen() {
             </View>
 
             {hasItems && selectedCombo ? (
-              <View style={styles.section}>
-                <ThemedText type="smallBold" themeColor="textSecondary">
-                  {t.listHub.compareStores.toUpperCase()}
-                </ThemedText>
+              <EntityCard
+                icon={<ThemedText>🛒</ThemedText>}
+                title={t.listHub.compareStores}
+                subtitle={t.lists.fromOneStore}
+                price={combos[0]?.total}
+                onPress={() => setIsCompareOpen(true)}
+              />
+            ) : (
+              <HonestGapCard
+                title={t.listHub.pricingComingSoonTitle}
+                subtitle={t.listHub.pricingComingSoonSubtitle}
+              />
+            )}
+          </>
+        )}
+      </View>
+
+      {hasItems && selectedCombo && (
+        <Modal visible={isCompareOpen} animationType="slide" transparent onRequestClose={() => setIsCompareOpen(false)}>
+          <View style={styles.sheetBackdrop}>
+            {/* Sibling touch-catcher behind the sheet, not a Pressable wrapping it --
+                see dialog.tsx for why nesting the sheet inside the backdrop's own
+                Pressable can eat taps meant for controls inside. */}
+            <Pressable style={StyleSheet.absoluteFill} onPress={() => setIsCompareOpen(false)} />
+            <View pointerEvents="box-none">
+              <ThemedView style={styles.sheet}>
+                <View style={styles.sheetHeader}>
+                  <ThemedText type="subtitle">{t.listHub.compareStores}</ThemedText>
+                  <Pressable onPress={() => setIsCompareOpen(false)} hitSlop={Spacing.two}>
+                    <ThemedText type="smallBold" themeColor="textSecondary">
+                      ✕
+                    </ThemedText>
+                  </Pressable>
+                </View>
 
                 <SegmentedControl
                   value={selectedCount}
@@ -463,16 +499,11 @@ export default function ListHubScreen() {
                   onPress={handleStartShopping}
                   disabled={commitMutation.isPending}
                 />
-              </View>
-            ) : (
-              <HonestGapCard
-                title={t.listHub.pricingComingSoonTitle}
-                subtitle={t.listHub.pricingComingSoonSubtitle}
-              />
-            )}
-          </>
-        )}
-      </View>
+              </ThemedView>
+            </View>
+          </View>
+        </Modal>
+      )}
     </ScrollView>
   );
 }
@@ -557,5 +588,23 @@ const styles = StyleSheet.create({
     width: '100%',
     textAlign: 'center',
     padding: 0,
+  },
+  sheetBackdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(20, 17, 12, 0.5)',
+  },
+  sheet: {
+    width: '100%',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: Spacing.four,
+    paddingBottom: Spacing.six,
+    gap: Spacing.two,
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
 });
