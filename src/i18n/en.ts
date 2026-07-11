@@ -27,7 +27,7 @@ export const en: Dictionary = {
   },
   lists: {
     title: 'Lists',
-    createdOn: (date: string) => `created ${date}`,
+    createdOn: (date: string) => date,
     fromOneStore: 'at 1 store',
     deleteLabel: (name: string) => `Delete ${name}`,
   },

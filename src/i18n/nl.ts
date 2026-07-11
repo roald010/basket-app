@@ -27,7 +27,7 @@ export const nl = {
   },
   lists: {
     title: 'Lijsten',
-    createdOn: (date: string) => `aangemaakt ${date}`,
+    createdOn: (date: string) => date,
     fromOneStore: 'bij 1 winkel',
     deleteLabel: (name: string) => `${name} verwijderen`,
   },
