@@ -1,6 +1,6 @@
 import Svg, { Circle, Path } from 'react-native-svg';
 
-export type NavIconName = 'home' | 'lists' | 'basket' | 'staples' | 'profile';
+export type NavIconName = 'home' | 'lists' | 'staples' | 'profile';
 
 type NavIconProps = {
   name: NavIconName;
@@ -29,12 +29,6 @@ export function NavIcon({ name, color, size = 24, active = false }: NavIconProps
         </Svg>
       );
     case 'lists':
-      return (
-        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-          <Path d="M4 6h16M4 12h16M4 18h10" stroke={color} strokeWidth={1.8} strokeLinecap="round" />
-        </Svg>
-      );
-    case 'basket':
       return (
         <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
           <Path
