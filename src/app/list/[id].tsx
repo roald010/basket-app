@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BackButton } from '@/components/ui/back-button';
+import { Dialog } from '@/components/ui/dialog';
 import { EntityCard } from '@/components/ui/entity-card';
 import { Expandable } from '@/components/ui/expandable';
 import { HonestGapCard } from '@/components/ui/honest-gap-card';
@@ -25,7 +26,13 @@ import {
   useRenameListMutation,
   useSetIncludeStaplesMutation,
 } from '@/features/lists/api';
-import { toOptimizerItems, useListItemMatchesQuery, useMatchListItemsMutation } from '@/features/matching/api';
+import {
+  toOptimizerItems,
+  useListItemMatchesQuery,
+  useMatchListItemsMutation,
+  useSetItemTierOverrideMutation,
+  type ProductTier,
+} from '@/features/matching/api';
 import { assignItems, bestCombos } from '@/features/matching/optimize';
 import { useCommitSelectionMutation } from '@/features/shopping/api';
 import { useStoresQuery } from '@/features/stores/api';
@@ -60,6 +67,19 @@ function useStoreComparison(listId: string, includeStaples: boolean) {
     () => new Map(itemAssignments.map((assignment) => [assignment.listItemId, assignment.price])),
     [itemAssignments]
   );
+
+  // The matched product's own name/tier at that same assigned chain -- lets List Hub
+  // show which real product the shopper-tier setting (or a per-item override) picked.
+  const itemProductInfo = useMemo(() => {
+    const map = new Map<string, { name: string; tier: ProductTier | null }>();
+    const matchByItem = new Map(matches.map((match) => [match.listItemId, match]));
+    for (const assignment of itemAssignments) {
+      const match = matchByItem.get(assignment.listItemId);
+      const chain = match?.chains.find((c) => c.chainSlug === assignment.chainSlug);
+      if (chain?.productName) map.set(assignment.listItemId, { name: chain.productName, tier: chain.productTier });
+    }
+    return map;
+  }, [matches, itemAssignments]);
 
   // Per-recipe subtotal at the single cheapest store -- shown on each recipe row
   // regardless of which combo the user later picks, so recipe cards don't jump around
@@ -104,10 +124,12 @@ function useStoreComparison(listId: string, includeStaples: boolean) {
 
   return {
     hasItems: matches.length > 0,
+    matches,
     combos,
     storesBySlug,
     optimizerItems,
     itemPrices,
+    itemProductInfo,
     recipePrices,
     recipeIngredients,
     stapleItems: stapleMatches,
@@ -129,14 +151,17 @@ export default function ListHubScreen() {
   const setIncludeStaplesMutation = useSetIncludeStaplesMutation();
   const addManualItemMutation = useAddManualItemMutation();
   const removeListItemMutation = useRemoveListItemMutation();
+  const setTierOverrideMutation = useSetItemTierOverrideMutation(id);
   const matchTriggeredForListRef = useRef<string | null>(null);
   const matchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const {
     hasItems,
+    matches,
     combos,
     storesBySlug,
     optimizerItems,
     itemPrices,
+    itemProductInfo,
     recipePrices,
     recipeIngredients,
     stapleItems,
@@ -151,6 +176,8 @@ export default function ListHubScreen() {
   const [isAddingProduct, setIsAddingProduct] = useState(false);
   const [newProductName, setNewProductName] = useState('');
   const [isCompareOpen, setIsCompareOpen] = useState(false);
+  const [pendingTierItemId, setPendingTierItemId] = useState<string | null>(null);
+  const pendingTierItem = matches.find((match) => match.listItemId === pendingTierItemId) ?? null;
 
   function toggleRecipeExpanded(recipeId: string) {
     setExpandedRecipeIds((current) => {
@@ -186,6 +213,23 @@ export default function ListHubScreen() {
 
   function handleRemoveManualProduct(itemId: string) {
     removeListItemMutation.mutate({ id: itemId, listId: id }, { onSuccess: scheduleMatch });
+  }
+
+  // Setting a tier doesn't re-pick a product by itself -- match_list_items() is what
+  // actually resolves coalesce(tier_override, profile default) into a matched_product_id,
+  // so an override needs an immediate rematch (not the debounced scheduleMatch) to show
+  // its effect right away.
+  function handleSetTier(itemId: string, tier: ProductTier | null) {
+    setTierOverrideMutation.mutate(
+      { itemId, tier },
+      {
+        onSuccess: () =>
+          matchMutation.mutate(id, {
+            onSuccess: () => queryClient.invalidateQueries({ queryKey: ['list-item-matches', id] }),
+          }),
+      }
+    );
+    setPendingTierItemId(null);
   }
 
   function startRenaming() {
@@ -320,6 +364,9 @@ export default function ListHubScreen() {
                         quantity={item.quantity}
                         unit={item.unit}
                         price={itemPrices.get(item.listItemId)}
+                        matchedProductName={itemProductInfo.get(item.listItemId)?.name}
+                        matchedProductTier={itemProductInfo.get(item.listItemId)?.tier}
+                        onPress={() => setPendingTierItemId(item.listItemId)}
                       />
                     ))}
                   </Expandable>
@@ -373,6 +420,9 @@ export default function ListHubScreen() {
                       quantity={item.quantity}
                       unit={item.unit}
                       price={itemPrices.get(item.listItemId)}
+                      matchedProductName={itemProductInfo.get(item.listItemId)?.name}
+                      matchedProductTier={itemProductInfo.get(item.listItemId)?.tier}
+                      onPress={() => setPendingTierItemId(item.listItemId)}
                     />
                   ))}
                 </Expandable>
@@ -390,6 +440,9 @@ export default function ListHubScreen() {
                   quantity={item.quantity}
                   unit={item.unit}
                   price={itemPrices.get(item.listItemId)}
+                  matchedProductName={itemProductInfo.get(item.listItemId)?.name}
+                  matchedProductTier={itemProductInfo.get(item.listItemId)?.tier}
+                  onPress={() => setPendingTierItemId(item.listItemId)}
                   onRemove={() => handleRemoveManualProduct(item.listItemId)}
                 />
               ))}
@@ -504,6 +557,18 @@ export default function ListHubScreen() {
           </View>
         </Modal>
       )}
+
+      <Dialog
+        visible={pendingTierItem !== null}
+        onClose={() => setPendingTierItemId(null)}
+        title={pendingTierItem ? t.listHub.chooseTierFor(pendingTierItem.name) : ''}
+        actions={[
+          { label: t.listHub.tierBudget, variant: pendingTierItem?.tierOverride === 'budget' ? 'primary-green' : 'outline', onPress: () => pendingTierItem && handleSetTier(pendingTierItem.listItemId, 'budget') },
+          { label: t.listHub.tierStandard, variant: pendingTierItem?.tierOverride === 'standard' ? 'primary-green' : 'outline', onPress: () => pendingTierItem && handleSetTier(pendingTierItem.listItemId, 'standard') },
+          { label: t.listHub.tierPremium, variant: pendingTierItem?.tierOverride === 'premium' ? 'primary-green' : 'outline', onPress: () => pendingTierItem && handleSetTier(pendingTierItem.listItemId, 'premium') },
+          { label: t.listHub.useDefaultTier, onPress: () => pendingTierItem && handleSetTier(pendingTierItem.listItemId, null) },
+        ]}
+      />
     </ScrollView>
   );
 }

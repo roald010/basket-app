@@ -88,13 +88,17 @@ const styles = StyleSheet.create({
   },
   actionsRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: Spacing.two,
     marginTop: Spacing.three,
   },
   actionsColumn: {
     marginTop: Spacing.three,
   },
+  // flexBasis (not flex:1) so >2 actions wrap two-per-row instead of all cramming
+  // into one row -- 2 actions still fill the row exactly the same as before.
   actionFlex: {
-    flex: 1,
+    flexBasis: '47%',
+    flexGrow: 1,
   },
 });

@@ -1,13 +1,19 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { supabase } from '@/lib/supabase';
 import { embeddedOne } from '@/lib/postgrest';
 import type { OptimizerItem } from '@/features/matching/optimize';
 
+export type ProductTier = 'budget' | 'standard' | 'premium';
+
 export type ItemChainMatch = {
   chainSlug: string;
   matchStatus: 'matched' | 'no_match';
   price: number | null;
+  /** The actually-matched product's own name/tier -- surfaces which real product the
+   * shopper-tier setting picked, e.g. "AH Biologische pecorino" · premium. */
+  productName: string | null;
+  productTier: ProductTier | null;
 };
 
 export type ListItemMatchRow = {
@@ -18,6 +24,8 @@ export type ListItemMatchRow = {
   name: string;
   quantity: number | null;
   unit: string | null;
+  /** null means "use the profile's shopper tier" -- set to override just this item. */
+  tierOverride: ProductTier | null;
   chains: ItemChainMatch[];
 };
 
@@ -34,7 +42,9 @@ export function toOptimizerItems(rows: ListItemMatchRow[]): OptimizerItem[] {
 async function fetchListItemMatches(listId: string): Promise<ListItemMatchRow[]> {
   const { data, error } = await supabase
     .from('list_items')
-    .select('id, recipe_id, source_type, name, quantity, unit, list_item_matches(chain_slug, match_status, products(price))')
+    .select(
+      'id, recipe_id, source_type, name, quantity, unit, tier_override, list_item_matches(chain_slug, match_status, products(name, price, tier))'
+    )
     .eq('list_id', listId);
   if (error) throw error;
 
@@ -45,11 +55,17 @@ async function fetchListItemMatches(listId: string): Promise<ListItemMatchRow[]>
     name: item.name,
     quantity: item.quantity,
     unit: item.unit,
-    chains: item.list_item_matches.map((match) => ({
-      chainSlug: match.chain_slug,
-      matchStatus: match.match_status,
-      price: embeddedOne(match.products)?.price ?? null,
-    })),
+    tierOverride: item.tier_override,
+    chains: item.list_item_matches.map((match) => {
+      const product = embeddedOne(match.products);
+      return {
+        chainSlug: match.chain_slug,
+        matchStatus: match.match_status,
+        price: product?.price ?? null,
+        productName: product?.name ?? null,
+        productTier: product?.tier ?? null,
+      };
+    }),
   }));
 }
 
@@ -66,4 +82,19 @@ async function matchListItems(listId: string): Promise<void> {
 /** Triggers the match_list_items() RPC for a list; callers should invalidate ['list-item-matches', listId] on success. */
 export function useMatchListItemsMutation() {
   return useMutation({ mutationFn: matchListItems });
+}
+
+async function setItemTierOverride(input: { itemId: string; tier: ProductTier | null }): Promise<void> {
+  const { error } = await supabase.from('list_items').update({ tier_override: input.tier }).eq('id', input.itemId);
+  if (error) throw error;
+}
+
+/** Sets (or clears, via null) a single item's tier override; callers should re-run
+ * match_list_items() afterward so the new tier actually picks a different product. */
+export function useSetItemTierOverrideMutation(listId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: setItemTierOverride,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['list-item-matches', listId] }),
+  });
 }

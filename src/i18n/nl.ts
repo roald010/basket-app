@@ -87,6 +87,11 @@ export const nl = {
     startShopping: 'Naar boodschappen',
     pricingComingSoonTitle: 'Prijzen volgen nog',
     pricingComingSoonSubtitle: 'Winkelvergelijking en prijzen komen in een volgende fase.',
+    tierBudget: 'Budget',
+    tierStandard: 'Standaard',
+    tierPremium: 'Premium',
+    chooseTierFor: (name: string) => `Tier voor "${name}"`,
+    useDefaultTier: 'Gebruik shopper-profiel',
   },
   shopping: {
     total: 'Totaal',

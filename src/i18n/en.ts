@@ -87,6 +87,11 @@ export const en: Dictionary = {
     startShopping: 'Start shopping',
     pricingComingSoonTitle: 'Pricing coming soon',
     pricingComingSoonSubtitle: 'Store comparison and pricing land in a later phase.',
+    tierBudget: 'Budget',
+    tierStandard: 'Standard',
+    tierPremium: 'Premium',
+    chooseTierFor: (name: string) => `Tier for "${name}"`,
+    useDefaultTier: 'Use shopper profile',
   },
   shopping: {
     total: 'Total',
