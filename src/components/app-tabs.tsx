@@ -118,7 +118,12 @@ export default function AppTabs() {
           <TabTrigger name="lists" href="/lists" asChild>
             <NavButton icon="lists" label={t.nav.lists} />
           </TabTrigger>
-          <AnimatedPressable onPress={handleNewList} disabled={createList.isPending} scaleTo={0.88} style={styles.fabButton}>
+          <AnimatedPressable
+            onPress={handleNewList}
+            disabled={createList.isPending}
+            scaleTo={0.88}
+            springConfig={TAB_PRESS_SPRING}
+            style={styles.fabButton}>
             <View style={StyleSheet.flatten([styles.fabPill, { backgroundColor: BrandColors.green }])}>
               <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
                 <Path d="M12 5v14M5 12h14" stroke="#fff" strokeWidth={2.2} strokeLinecap="round" />
