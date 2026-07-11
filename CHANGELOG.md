@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI now runs on every pull request (any base branch), executes the test suite, and
   runs on Node 22 (required for the test job's type-stripping).
 - PR template now asks for a change category and a CHANGELOG-updated checkbox.
+- Synced `CLAUDE.md` and `README.md` with the new `test`/`typecheck` scripts, the Node ≥ 22
+  requirement, and the PR/changelog workflow (`CLAUDE.md` no longer says "no test suite").
 
 ### Removed
 

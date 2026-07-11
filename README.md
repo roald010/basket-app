@@ -37,9 +37,9 @@ This command will move the starter code to the **app-example** directory and cre
 
 ### Other setup steps
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+- Lint with `npm run lint`; type-check with `npm run typecheck`.
+- Run the unit tests with `npm test` (Node's built-in test runner over `tests/`, no test-framework dependency; requires Node ≥ 22). These cover the pure, RN-free logic only.
+- See `CONTRIBUTING.md` for the PR + changelog workflow, and `CLAUDE.md` for architecture.
 
 ## Learn more
 
