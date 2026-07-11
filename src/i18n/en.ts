@@ -40,10 +40,7 @@ export const en: Dictionary = {
     unitPlaceholder: 'e.g. kg',
     unitHint: '+ unit',
     fromPrice: (price: string) => `from ${price}`,
-    removeTitle: (name: string) => `Remove "${name}"?`,
-    removeMessage: "It won't be added to new baskets automatically anymore. Baskets that already have it stay unchanged.",
-    remove: 'Remove',
-    cancel: 'Cancel',
+    deleteLabel: (name: string) => `Delete ${name}`,
   },
   profile: {
     title: 'Profile',

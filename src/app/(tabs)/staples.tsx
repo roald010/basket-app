@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Dialog } from '@/components/ui/dialog';
 import { ProductIcon, matchProductCategory } from '@/components/ui/product-icon';
 import { SkeletonCard } from '@/components/ui/skeleton';
 import { Stepper } from '@/components/ui/stepper';
@@ -20,6 +20,87 @@ import {
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useTranslation } from '@/i18n';
+
+const DESTRUCTIVE_RED = '#E5484D';
+
+/** A staple card that reveals a delete action when swiped left -- same pattern as
+ * Lists' SwipeableListCard, for consistency across the app. The swipe itself is the
+ * confirmation, no popup needed. Quantity 0 just dims the card ("off"); it no longer
+ * triggers a delete prompt -- swiping is now the only way to remove a staple. */
+function SwipeableStapleCard({
+  item,
+  editingUnitId,
+  unitDraft,
+  onUnitDraftChange,
+  onStartEditingUnit,
+  onSubmitUnitEdit,
+  onQuantityChange,
+  onDelete,
+}: {
+  item: StapleTemplate;
+  editingUnitId: string | null;
+  unitDraft: string;
+  onUnitDraftChange: (value: string) => void;
+  onStartEditingUnit: (item: StapleTemplate) => void;
+  onSubmitUnitEdit: (item: StapleTemplate) => void;
+  onQuantityChange: (quantity: number) => void;
+  onDelete: () => void;
+}) {
+  const theme = useTheme();
+  const { t } = useTranslation();
+  const isOff = item.quantity === 0;
+  const swipeableRef = useRef<SwipeableMethods>(null);
+
+  return (
+    <ReanimatedSwipeable
+      ref={swipeableRef}
+      friction={2}
+      rightThreshold={40}
+      overshootRight={false}
+      renderRightActions={() => (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t.staples.deleteLabel(item.name)}
+          onPress={onDelete}
+          style={[styles.deleteAction, { backgroundColor: DESTRUCTIVE_RED }]}
+        >
+          <ThemedText style={styles.deleteX}>✕</ThemedText>
+        </Pressable>
+      )}>
+      {/* No per-item price here: staple_templates has no price column (that would
+          need the same catalog-matching machinery list_items gets), so this stays
+          honest rather than fabricating one. The icon is a best-effort keyword
+          match to a category (matchProductCategory), not real product data. */}
+      <ThemedView type="backgroundElement" style={[styles.card, isOff && styles.cardOff]}>
+        <View style={[styles.iconTile, { backgroundColor: theme.backgroundSelected }]}>
+          <ProductIcon category={matchProductCategory(item.name)} color={theme.textSecondary} />
+        </View>
+        <View style={styles.cardBody}>
+          <ThemedText type="smallBold">{item.name}</ThemedText>
+          {editingUnitId === item.id ? (
+            <TextInput
+              value={unitDraft}
+              onChangeText={onUnitDraftChange}
+              placeholder={t.staples.unitPlaceholder}
+              placeholderTextColor={theme.textSecondary}
+              autoFocus
+              onSubmitEditing={() => onSubmitUnitEdit(item)}
+              onBlur={() => onSubmitUnitEdit(item)}
+              style={[styles.unitInput, { color: theme.text }]}
+            />
+          ) : (
+            <Pressable onPress={() => onStartEditingUnit(item)} hitSlop={Spacing.one}>
+              <ThemedText type="small" themeColor="textSecondary">
+                {item.unit || t.staples.unitHint}
+              </ThemedText>
+            </Pressable>
+          )}
+        </View>
+        <Stepper value={item.quantity} onChange={onQuantityChange} min={0} max={99} />
+      </ThemedView>
+    </ReanimatedSwipeable>
+  );
+}
 
 export default function StaplesScreen() {
   const safeAreaInsets = useSafeAreaInsets();
@@ -39,7 +120,6 @@ export default function StaplesScreen() {
   const [newUnit, setNewUnit] = useState('');
   const [editingUnitId, setEditingUnitId] = useState<string | null>(null);
   const [unitDraft, setUnitDraft] = useState('');
-  const [pendingRemove, setPendingRemove] = useState<StapleTemplate | null>(null);
 
   const submitNewStaple = () => {
     const name = newName.trim();
@@ -63,13 +143,6 @@ export default function StaplesScreen() {
     const unit = unitDraft.trim() || null;
     if (unit !== item.unit) updateUnit.mutate({ id: item.id, unit });
     setEditingUnitId(null);
-  }
-
-  // Dialing the stepper down to 0 asks for confirmation instead of silently
-  // soft-disabling forever -- a real delete, not just quantity 0 (see
-  // useDeleteStapleTemplateMutation for why that's safe for historical lists).
-  function confirmRemove(item: StapleTemplate) {
-    setPendingRemove(item);
   }
 
   // See index.tsx for why iOS now needs explicit padding (headless tab bar, no
@@ -105,53 +178,19 @@ export default function StaplesScreen() {
           )}
 
           <View style={styles.list}>
-            {staples.map((item) => {
-              const isOff = item.quantity === 0;
-              return (
-                // No per-item price here: staple_templates has no price column (that would
-                // need the same catalog-matching machinery list_items gets), so this stays
-                // honest rather than fabricating one. The icon is a best-effort keyword
-                // match to a category (matchProductCategory), not real product data.
-                <ThemedView key={item.id} type="backgroundElement" style={[styles.card, isOff && styles.cardOff]}>
-                  <View style={[styles.iconTile, { backgroundColor: theme.backgroundSelected }]}>
-                    <ProductIcon category={matchProductCategory(item.name)} color={theme.textSecondary} />
-                  </View>
-                  <View style={styles.cardBody}>
-                    <ThemedText type="smallBold">{item.name}</ThemedText>
-                    {isOff ? (
-                      <Pressable onPress={() => confirmRemove(item)} hitSlop={Spacing.one}>
-                        <ThemedText type="small" style={{ color: theme.honestGapBorder }}>
-                          {t.staples.remove}
-                        </ThemedText>
-                      </Pressable>
-                    ) : editingUnitId === item.id ? (
-                      <TextInput
-                        value={unitDraft}
-                        onChangeText={setUnitDraft}
-                        placeholder={t.staples.unitPlaceholder}
-                        placeholderTextColor={theme.textSecondary}
-                        autoFocus
-                        onSubmitEditing={() => submitUnitEdit(item)}
-                        onBlur={() => submitUnitEdit(item)}
-                        style={[styles.unitInput, { color: theme.text }]}
-                      />
-                    ) : (
-                      <Pressable onPress={() => startEditingUnit(item)} hitSlop={Spacing.one}>
-                        <ThemedText type="small" themeColor="textSecondary">
-                          {item.unit || t.staples.unitHint}
-                        </ThemedText>
-                      </Pressable>
-                    )}
-                  </View>
-                  <Stepper
-                    value={item.quantity}
-                    onChange={(quantity) => (quantity === 0 ? confirmRemove(item) : updateQuantity.mutate({ id: item.id, quantity }))}
-                    min={0}
-                    max={99}
-                  />
-                </ThemedView>
-              );
-            })}
+            {staples.map((item) => (
+              <SwipeableStapleCard
+                key={item.id}
+                item={item}
+                editingUnitId={editingUnitId}
+                unitDraft={unitDraft}
+                onUnitDraftChange={setUnitDraft}
+                onStartEditingUnit={startEditingUnit}
+                onSubmitUnitEdit={submitUnitEdit}
+                onQuantityChange={(quantity) => updateQuantity.mutate({ id: item.id, quantity })}
+                onDelete={() => deleteStaple.mutate(item.id)}
+              />
+            ))}
 
             {isAdding ? (
               <View style={[styles.addRow, styles.addRowActive, { borderColor: theme.backgroundSelected }]}>
@@ -190,24 +229,6 @@ export default function StaplesScreen() {
           </View>
         </ThemedView>
       </ScrollView>
-
-      <Dialog
-        visible={pendingRemove !== null}
-        onClose={() => setPendingRemove(null)}
-        title={pendingRemove ? t.staples.removeTitle(pendingRemove.name) : ''}
-        message={t.staples.removeMessage}
-        actions={[
-          { label: t.staples.cancel, onPress: () => setPendingRemove(null) },
-          {
-            label: t.staples.remove,
-            variant: 'fix-it',
-            onPress: () => {
-              if (pendingRemove) deleteStaple.mutate(pendingRemove.id);
-              setPendingRemove(null);
-            },
-          },
-        ]}
-      />
     </TabScreenTransition>
   );
 }
@@ -241,6 +262,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   cardBody: { flex: 1, gap: Spacing.half },
+  deleteAction: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 72,
+    marginLeft: Spacing.two,
+    borderRadius: 16,
+  },
+  deleteX: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '700',
+  },
   addRow: {
     marginTop: Spacing.one,
     paddingVertical: Spacing.three,

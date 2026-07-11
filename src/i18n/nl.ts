@@ -40,10 +40,7 @@ export const nl = {
     unitPlaceholder: 'bijv. kg',
     unitHint: '+ eenheid',
     fromPrice: (price: string) => `vanaf ${price}`,
-    removeTitle: (name: string) => `"${name}" verwijderen?`,
-    removeMessage: 'Dit product wordt niet meer automatisch aan nieuwe mandjes toegevoegd. Mandjes waar het al in staat, blijven ongewijzigd.',
-    remove: 'Verwijderen',
-    cancel: 'Annuleren',
+    deleteLabel: (name: string) => `${name} verwijderen`,
   },
   profile: {
     title: 'Profiel',
