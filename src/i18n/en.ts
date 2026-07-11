@@ -76,7 +76,7 @@ export const en: Dictionary = {
     parseError: "Couldn't recognize that recipe. Please try again.",
   },
   listHub: {
-    recipesInList: 'Recipes in this basket',
+    recipesInList: 'Recipes',
     addRecipe: 'Add recipe',
     servingsAndIngredients: (servings: number, n: number) => `for ${servings} · ${n} ingredient${n === 1 ? '' : 's'}`,
     staplesInList: 'Staples',

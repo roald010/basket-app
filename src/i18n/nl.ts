@@ -76,7 +76,7 @@ export const nl = {
     parseError: 'Kon het recept niet herkennen. Probeer het opnieuw.',
   },
   listHub: {
-    recipesInList: 'Recepten in dit mandje',
+    recipesInList: 'Recepten',
     addRecipe: 'Recept toevoegen',
     servingsAndIngredients: (servings: number, n: number) => `voor ${servings} · ${n} ingredient${n === 1 ? '' : 'en'}`,
     staplesInList: 'Vaste producten',
