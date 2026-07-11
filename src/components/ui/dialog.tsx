@@ -31,8 +31,13 @@ export function Dialog({ visible, onClose, title, message, actions }: DialogProp
 
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable onPress={(e) => e.stopPropagation()} style={styles.cardWrap}>
+      <View style={styles.backdrop}>
+        {/* A dedicated touch-catching layer BEHIND the card, not a Pressable wrapping
+            it -- nesting the card inside the backdrop's own Pressable (with the card's
+            Pressable calling stopPropagation) is a known React Native footgun where the
+            outer Pressable can still eat the tap meant for a button inside the card. */}
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <View style={styles.cardWrap} pointerEvents="box-none">
           <ThemedView style={[styles.card, { borderColor: theme.backgroundSelected }]}>
             <ThemedText type="subtitle" style={styles.title}>
               {title}
@@ -50,8 +55,8 @@ export function Dialog({ visible, onClose, title, message, actions }: DialogProp
               ))}
             </View>
           </ThemedView>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }

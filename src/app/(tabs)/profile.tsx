@@ -76,8 +76,14 @@ export default function ProfileScreen() {
           </View>
 
           <Modal visible={isSettingsOpen} animationType="slide" transparent onRequestClose={() => setIsSettingsOpen(false)}>
-            <Pressable style={styles.modalBackdrop} onPress={() => setIsSettingsOpen(false)}>
-              <Pressable onPress={(e) => e.stopPropagation()}>
+            <View style={styles.modalBackdrop}>
+              {/* A dedicated touch-catching layer BEHIND the sheet, not a Pressable
+                  wrapping it -- nesting the sheet inside the backdrop's own Pressable
+                  (with the sheet's Pressable calling stopPropagation) is a known React
+                  Native footgun where the outer Pressable can still eat taps meant for
+                  controls inside the sheet. */}
+              <Pressable style={StyleSheet.absoluteFill} onPress={() => setIsSettingsOpen(false)} />
+              <View pointerEvents="box-none">
                 <ThemedView style={styles.modalSheet}>
                   <View style={styles.modalHeader}>
                     <ThemedText type="subtitle">{t.settings.title}</ThemedText>
@@ -99,8 +105,8 @@ export default function ProfileScreen() {
                     onChange={(value) => setLocale(value as Locale)}
                   />
                 </ThemedView>
-              </Pressable>
-            </Pressable>
+              </View>
+            </View>
           </Modal>
 
           <View style={styles.section}>
