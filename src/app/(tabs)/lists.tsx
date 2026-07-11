@@ -1,21 +1,18 @@
 import { router } from 'expo-router';
-import { useRef } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { EntityCard } from '@/components/ui/entity-card';
 import { NavIcon } from '@/components/ui/nav-icon';
 import { SkeletonCard } from '@/components/ui/skeleton';
+import { SwipeToDelete } from '@/components/ui/swipe-to-delete';
 import { TabScreenTransition } from '@/components/ui/tab-screen-transition';
 import { useCreateListMutation, useDeleteListMutation, useListsQuery, type ListSummary } from '@/features/lists/api';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useTranslation } from '@/i18n';
 import { formatListDate } from '@/lib/format-date';
-
-const DESTRUCTIVE_RED = '#E5484D';
 
 /** A list card that reveals a delete action when swiped left. Swiping past the
  * threshold and tapping the X removes the list -- the deliberate swipe is the
@@ -24,25 +21,9 @@ function SwipeableListCard({ list, subtitle }: { list: ListSummary; subtitle: st
   const theme = useTheme();
   const { t } = useTranslation();
   const deleteList = useDeleteListMutation();
-  const swipeableRef = useRef<SwipeableMethods>(null);
 
   return (
-    <ReanimatedSwipeable
-      ref={swipeableRef}
-      friction={2}
-      rightThreshold={40}
-      overshootRight={false}
-      renderRightActions={() => (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t.lists.deleteLabel(list.name)}
-          onPress={() => deleteList.mutate(list.id)}
-          style={[styles.deleteAction, { backgroundColor: DESTRUCTIVE_RED }]}
-        >
-          <ThemedText style={styles.deleteX}>✕</ThemedText>
-        </Pressable>
-      )}
-    >
+    <SwipeToDelete onDelete={() => deleteList.mutate(list.id)} deleteLabel={t.lists.deleteLabel(list.name)}>
       <EntityCard
         icon={<NavIcon name="lists" color={theme.textSecondary} />}
         title={list.name}
@@ -51,7 +32,7 @@ function SwipeableListCard({ list, subtitle }: { list: ListSummary; subtitle: st
         priceCaption={list.bestSingleStoreTotal != null ? t.lists.fromOneStore : undefined}
         onPress={() => router.push(`/list/${list.id}`)}
       />
-    </ReanimatedSwipeable>
+    </SwipeToDelete>
   );
 }
 
@@ -135,18 +116,6 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.six,
   },
   stack: { gap: Spacing.three },
-  deleteAction: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: 72,
-    marginLeft: Spacing.two,
-    borderRadius: 16,
-  },
-  deleteX: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '700',
-  },
   newList: {
     alignItems: 'center',
     justifyContent: 'center',

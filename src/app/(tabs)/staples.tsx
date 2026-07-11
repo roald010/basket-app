@@ -1,6 +1,5 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -8,6 +7,7 @@ import { ThemedView } from '@/components/themed-view';
 import { ProductIcon, matchProductCategory } from '@/components/ui/product-icon';
 import { SkeletonCard } from '@/components/ui/skeleton';
 import { Stepper } from '@/components/ui/stepper';
+import { SwipeToDelete } from '@/components/ui/swipe-to-delete';
 import { TabScreenTransition } from '@/components/ui/tab-screen-transition';
 import {
   useAddStapleTemplateMutation,
@@ -21,10 +21,8 @@ import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useTranslation } from '@/i18n';
 
-const DESTRUCTIVE_RED = '#E5484D';
-
-/** A staple card that reveals a delete action when swiped left -- same pattern as
- * Lists' SwipeableListCard, for consistency across the app. The swipe itself is the
+/** A staple card that reveals a delete action when swiped left -- same shared
+ * SwipeToDelete every swipeable card in the app uses. The swipe itself is the
  * confirmation, no popup needed. Quantity 0 just dims the card ("off"); it no longer
  * triggers a delete prompt -- swiping is now the only way to remove a staple. */
 function SwipeableStapleCard({
@@ -49,24 +47,9 @@ function SwipeableStapleCard({
   const theme = useTheme();
   const { t } = useTranslation();
   const isOff = item.quantity === 0;
-  const swipeableRef = useRef<SwipeableMethods>(null);
 
   return (
-    <ReanimatedSwipeable
-      ref={swipeableRef}
-      friction={2}
-      rightThreshold={40}
-      overshootRight={false}
-      renderRightActions={() => (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t.staples.deleteLabel(item.name)}
-          onPress={onDelete}
-          style={[styles.deleteAction, { backgroundColor: DESTRUCTIVE_RED }]}
-        >
-          <ThemedText style={styles.deleteX}>✕</ThemedText>
-        </Pressable>
-      )}>
+    <SwipeToDelete onDelete={onDelete} deleteLabel={t.staples.deleteLabel(item.name)}>
       {/* No per-item price here: staple_templates has no price column (that would
           need the same catalog-matching machinery list_items gets), so this stays
           honest rather than fabricating one. The icon is a best-effort keyword
@@ -98,7 +81,7 @@ function SwipeableStapleCard({
         </View>
         <Stepper value={item.quantity} onChange={onQuantityChange} min={0} max={99} />
       </ThemedView>
-    </ReanimatedSwipeable>
+    </SwipeToDelete>
   );
 }
 
@@ -262,18 +245,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   cardBody: { flex: 1, gap: Spacing.half },
-  deleteAction: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: 72,
-    marginLeft: Spacing.two,
-    borderRadius: 16,
-  },
-  deleteX: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '700',
-  },
   addRow: {
     marginTop: Spacing.one,
     paddingVertical: Spacing.three,

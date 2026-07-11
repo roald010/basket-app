@@ -5,8 +5,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { NavIcon } from '@/components/ui/nav-icon';
 import { PriceText, formatEUR } from '@/components/ui/price-text';
+import { SwipeToDelete } from '@/components/ui/swipe-to-delete';
 import { TabScreenTransition } from '@/components/ui/tab-screen-transition';
-import { useCreateListMutation, useListsQuery } from '@/features/lists/api';
+import { useCreateListMutation, useDeleteListMutation, useListsQuery } from '@/features/lists/api';
 import { useProfileQuery } from '@/features/profile/api';
 import { useMonthlySavingsQuery } from '@/features/savings/api';
 import { BottomTabInset, BrandColors, Colors, MaxContentWidth, Spacing } from '@/constants/theme';
@@ -22,6 +23,7 @@ export default function HomeScreen() {
   const { data: profile } = useProfileQuery();
   const { data: monthlySavings } = useMonthlySavingsQuery();
   const createList = useCreateListMutation();
+  const deleteList = useDeleteListMutation();
   const recentLists = lists?.slice(0, 2) ?? [];
 
   function handleNewList() {
@@ -109,34 +111,35 @@ export default function HomeScreen() {
 
           <View style={styles.listStack}>
             {recentLists.map((list) => (
-              <Pressable
-                key={list.id}
-                onPress={() => router.push(`/list/${list.id}`)}
-                style={[
-                  styles.listCard,
-                  {
-                    backgroundColor: theme.background,
-                    borderColor: theme.backgroundElement,
-                  },
-                ]}
-              >
-                <View style={[styles.listIcon, { backgroundColor: theme.backgroundElement }]}>
-                  <NavIcon name="lists" color={theme.textSecondary} />
-                </View>
-                <View style={styles.listText}>
-                  <ThemedText type="smallBold" numberOfLines={1}>
-                    {list.name}
-                  </ThemedText>
-                  <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
-                    {t.home.recipesCount(list.recipeCount)} · {t.lists.createdOn(formatListDate(list.createdAt, locale))}
-                  </ThemedText>
-                </View>
-                {list.bestSingleStoreTotal != null && (
-                  <View style={styles.priceColumn}>
-                    <PriceText amount={list.bestSingleStoreTotal} />
+              <SwipeToDelete key={list.id} onDelete={() => deleteList.mutate(list.id)} deleteLabel={t.lists.deleteLabel(list.name)}>
+                <Pressable
+                  onPress={() => router.push(`/list/${list.id}`)}
+                  style={[
+                    styles.listCard,
+                    {
+                      backgroundColor: theme.background,
+                      borderColor: theme.backgroundElement,
+                    },
+                  ]}
+                >
+                  <View style={[styles.listIcon, { backgroundColor: theme.backgroundElement }]}>
+                    <NavIcon name="lists" color={theme.textSecondary} />
                   </View>
-                )}
-              </Pressable>
+                  <View style={styles.listText}>
+                    <ThemedText type="smallBold" numberOfLines={1}>
+                      {list.name}
+                    </ThemedText>
+                    <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+                      {t.home.recipesCount(list.recipeCount)} · {t.lists.createdOn(formatListDate(list.createdAt, locale))}
+                    </ThemedText>
+                  </View>
+                  {list.bestSingleStoreTotal != null && (
+                    <View style={styles.priceColumn}>
+                      <PriceText amount={list.bestSingleStoreTotal} />
+                    </View>
+                  )}
+                </Pressable>
+              </SwipeToDelete>
             ))}
           </View>
         </View>
