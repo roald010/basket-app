@@ -20,7 +20,6 @@ export const nl = {
     newList: 'Nieuw mandje',
     newListSubtitle: 'Plak een recept, deel een link of foto',
     recentLists: 'Recente mandjes',
-    switchLanguage: 'Wissel van taal',
     all: 'Alles',
     recipesCount: (n: number) => `${n} recept${n === 1 ? '' : 'en'}`,
     storesCount: (n: number) => `${n} winkel${n === 1 ? '' : 's'}`,

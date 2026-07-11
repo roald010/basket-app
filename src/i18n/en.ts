@@ -20,7 +20,6 @@ export const en: Dictionary = {
     newList: 'New basket',
     newListSubtitle: 'Paste a recipe, share a link or photo',
     recentLists: 'Recent baskets',
-    switchLanguage: 'Switch language',
     all: 'All',
     recipesCount: (n: number) => `${n} recipe${n === 1 ? '' : 's'}`,
     storesCount: (n: number) => `${n} store${n === 1 ? '' : 's'}`,

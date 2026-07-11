@@ -16,7 +16,7 @@ import { formatListDate } from '@/lib/format-date';
 
 export default function HomeScreen() {
   const theme = useTheme();
-  const { t, locale, setLocale } = useTranslation();
+  const { t, locale } = useTranslation();
   const safeAreaInsets = useSafeAreaInsets();
   const { data: lists } = useListsQuery();
   const { data: profile } = useProfileQuery();
@@ -55,36 +55,11 @@ export default function HomeScreen() {
         contentContainerStyle={[styles.contentContainer, contentPlatformStyle]}
       >
         <View style={styles.container}>
-          <View style={styles.headerRow}>
-            <View style={styles.headerText}>
-              <ThemedText type="small" themeColor="textSecondary">
-                {t.home.greeting(daypart, profile?.displayName ?? null)}
-              </ThemedText>
-              <ThemedText type="subtitle">{t.home.title}</ThemedText>
-            </View>
-            <View style={styles.headerActions}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={t.home.switchLanguage}
-                hitSlop={Spacing.two}
-                onPress={() => setLocale(locale === 'nl' ? 'en' : 'nl')}
-                style={[styles.langChip, { backgroundColor: theme.backgroundElement }]}
-              >
-                <ThemedText style={styles.langGlobe}>🌐</ThemedText>
-                <ThemedText type="smallBold" themeColor="textSecondary">
-                  {locale.toUpperCase()}
-                </ThemedText>
-              </Pressable>
-              <View style={[styles.avatar, { backgroundColor: theme.chipNeutralBg }]}>
-                {profile?.displayName ? (
-                  <ThemedText type="smallBold" style={[styles.avatarLetter, { color: BrandColors.green }]}>
-                    {profile.displayName.charAt(0).toUpperCase()}
-                  </ThemedText>
-                ) : (
-                  <NavIcon name="profile" color={BrandColors.green} size={22} />
-                )}
-              </View>
-            </View>
+          <View style={styles.headerText}>
+            <ThemedText type="small" themeColor="textSecondary">
+              {t.home.greeting(daypart, profile?.displayName ?? null)}
+            </ThemedText>
+            <ThemedText type="subtitle">{t.home.title}</ThemedText>
           </View>
 
           {monthlySavings != null && monthlySavings > 0 && (
@@ -180,42 +155,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.four,
     paddingVertical: Spacing.five,
   },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: Spacing.three,
-  },
   headerText: {
-    flex: 1,
-    minWidth: 0,
     gap: Spacing.half,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-  },
-  langChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.one,
-    paddingHorizontal: Spacing.two,
-    height: 28,
-    borderRadius: 14,
-  },
-  langGlobe: {
-    fontSize: 12,
-  },
-  avatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarLetter: {
-    fontSize: 18,
   },
   savingsRibbon: {
     flexDirection: 'row',
