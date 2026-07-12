@@ -66,7 +66,6 @@ export const nl = {
     heading: 'Zet er een recept in',
     linkHint: 'Of deel een link van Instagram, TikTok, een blog of website.',
     textareaPlaceholder: 'Plak hier je recept...',
-    servingsQuestion: 'Voor hoeveel personen?',
     recognize: 'Recept toevoegen',
     recognizing: 'Bezig met toevoegen...',
     pasteSomethingFirst: 'Plak eerst een recept.',

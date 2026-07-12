@@ -66,7 +66,6 @@ export const en: Dictionary = {
     heading: 'Paste in a recipe',
     linkHint: 'Or share a link from Instagram, TikTok, a blog, or a website.',
     textareaPlaceholder: 'Paste your recipe here...',
-    servingsQuestion: 'How many people?',
     recognize: 'Add recipe',
     recognizing: 'Adding...',
     pasteSomethingFirst: 'Paste a recipe first.',

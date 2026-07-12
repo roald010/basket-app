@@ -6,12 +6,18 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { Button } from '@/components/ui/button';
 import { SegmentedControl } from '@/components/ui/segmented-control';
-import { Stepper } from '@/components/ui/stepper';
 import { setDraft } from '@/features/capture/draft-store';
 import { useParseRecipeMutation } from '@/features/recipes/api';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useTranslation } from '@/i18n';
+
+// parse-recipe scales quantities by servingsTarget/servingsDetected, but review.tsx
+// immediately divides that same factor back out to recover the as-written amount (see
+// its `base` comment) -- the two cancel exactly regardless of which target was sent, so
+// this value never affects what the user sees. The real "how many people" input lives on
+// the Review screen (recipe's own count + cook-for count, both correctable there), not here.
+const PARSE_SERVINGS_TARGET = 1;
 
 export default function CaptureScreen() {
   const { t } = useTranslation();
@@ -21,7 +27,6 @@ export default function CaptureScreen() {
 
   const [mode, setMode] = useState('text');
   const [text, setText] = useState('');
-  const [servings, setServings] = useState(2);
   const [error, setError] = useState<string | null>(null);
   const parseRecipe = useParseRecipeMutation();
 
@@ -43,7 +48,7 @@ export default function CaptureScreen() {
       return;
     }
     parseRecipe.mutate(
-      { text, servingsTarget: servings },
+      { text, servingsTarget: PARSE_SERVINGS_TARGET },
       {
         onSuccess: (result) => {
           setDraft({
@@ -102,16 +107,6 @@ export default function CaptureScreen() {
           ]}
         />
 
-        {/* Manual text entry has no known source serving count until parsing --
-            the "recipe is for N" prefill note only makes sense for Link/Photo
-            capture, where the source's own metadata could be read ahead of time. */}
-        <View style={[styles.servingsCard, { backgroundColor: theme.background, borderColor: theme.backgroundElement }]}>
-          <ThemedText type="smallBold" style={styles.servingsText}>
-            {t.capture.servingsQuestion}
-          </ThemedText>
-          <Stepper value={servings} onChange={setServings} min={1} max={12} />
-        </View>
-
         {error && (
           <ThemedText type="small" style={{ color: theme.honestGapBorder }}>
             {error}
@@ -158,19 +153,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     textAlignVertical: 'top',
-  },
-  servingsCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: Spacing.three,
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: Spacing.three,
-  },
-  servingsText: {
-    flex: 1,
-    gap: Spacing.half,
   },
   footer: {
     padding: Spacing.four,
