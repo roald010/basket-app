@@ -127,10 +127,11 @@ test('a much more likely kind ranks first even with fewer chains (most-likely-fi
     // high-confidence match at 2 chains -- clearly what was typed
     ...['ah', 'jumbo'].map((c) =>
       candidate({ chainSlug: c, name: 'Halfvolle melk 1 l', parsedQuantity: 1, parsedUnit: 'l', unitType: 'volume', score: 0.9, price: 1.3 })),
-    // weak, barely-similarity match carried by many more chains
+    // lower-confidence but still-plausible match carried by many more chains
     ...['lidl', 'plus', 'spar', 'dirk', 'vomar'].map((c) =>
-      candidate({ chainSlug: c, name: 'Melkchocolade 1 kg', parsedQuantity: 1, parsedUnit: 'kg', unitType: 'mass', score: 0.32, price: 4 })),
+      candidate({ chainSlug: c, name: 'Melkchocolade 1 kg', parsedQuantity: 1, parsedUnit: 'kg', unitType: 'mass', score: 0.55, price: 4 })),
   ]);
+  assert.equal(kinds.length, 2); // both clear the plausibility floor, so both survive
   assert.equal(kinds[0].confidence, 0.9);
   assert.equal(kinds[0].chainCount, 2);
 });
@@ -141,32 +142,25 @@ test('needsKindChoice: a single kind never needs a choice', () => {
   ])), false);
 });
 
-test('needsKindChoice: a dominant top kind does not need a choice', () => {
-  const kinds = standardizeVariants([
-    ...['ah', 'jumbo'].map((c) => candidate({ chainSlug: c, name: 'Goudse kaas 500 g', parsedQuantity: 500, parsedUnit: 'g', unitType: 'mass', score: 0.85 })),
-    ...['ah', 'jumbo'].map((c) => candidate({ chainSlug: c, name: 'Kaassaus 500 g', parsedQuantity: 500, parsedUnit: 'g', unitType: 'mass', score: 0.32 })),
-  ]);
-  // both are size band 1 (250-750g) so they'd merge -- use different bands to keep them distinct
-  assert.ok(kinds.length <= 2);
-});
-
-test('needsKindChoice: two close, both-plausible kinds need a choice', () => {
-  const kinds = standardizeVariants([
-    ...['ah', 'jumbo', 'lidl'].map((c) => candidate({ chainSlug: c, name: 'Goudse kaas 200 g', parsedQuantity: 200, parsedUnit: 'g', unitType: 'mass', score: 0.55 })),
-    ...['ah', 'jumbo'].map((c) => candidate({ chainSlug: c, name: 'Goudse kaas 1 kg', parsedQuantity: 1, parsedUnit: 'kg', unitType: 'mass', score: 0.5 })),
-  ]);
-  assert.equal(kinds.length, 2);
-  assert.ok(Math.abs(kinds[0].confidence - kinds[1].confidence) <= 0.1);
-  assert.equal(needsKindChoice(kinds), true);
-});
-
-test('needsKindChoice: a weak runner-up (below the plausibility floor) does not force a choice', () => {
+test('a candidate below the plausibility floor is dropped entirely, not just deprioritized', () => {
+  // word_similarity scores a genuine match ~1.0 almost regardless of the rest of the name, so
+  // confidence can't tell two REAL kinds apart (see the field's own comment) -- but it still
+  // has to reject a coincidental, barely-related match. 0.4 mirrors the real gap measured
+  // against Vomar's catalog: unrelated products capped out around there, genuine matches
+  // scored 0.6+.
   const kinds = standardizeVariants([
     ...['ah', 'jumbo'].map((c) => candidate({ chainSlug: c, name: 'Halfvolle melk 1 l', parsedQuantity: 1, parsedUnit: 'l', unitType: 'volume', score: 0.8 })),
-    // different unit_type (mass, not volume) so it lands in a distinct kind, but its
-    // confidence (0.15) is below MIN_PLAUSIBLE_CONFIDENCE -- not a real second reading.
-    ...['lidl', 'plus'].map((c) => candidate({ chainSlug: c, name: 'Iets anders 2 kg', parsedQuantity: 2, parsedUnit: 'kg', unitType: 'mass', score: 0.15 })),
+    ...['lidl', 'plus'].map((c) => candidate({ chainSlug: c, name: 'Iets anders 2 kg', parsedQuantity: 2, parsedUnit: 'kg', unitType: 'mass', score: 0.4 })),
+  ]);
+  assert.equal(kinds.length, 1); // the weak candidate never becomes a second kind
+  assert.equal(needsKindChoice(kinds), false);
+});
+
+test('needsKindChoice: two distinct, plausible kinds need a choice -- e.g. courgette by weight vs. by piece', () => {
+  const kinds = standardizeVariants([
+    ...['ah', 'jumbo', 'lidl'].map((c) => candidate({ chainSlug: c, name: 'Courgette 500 g', parsedQuantity: 500, parsedUnit: 'g', unitType: 'mass', score: 1 })),
+    ...['ah', 'plus'].map((c) => candidate({ chainSlug: c, name: 'Courgette per stuk', parsedQuantity: 1, parsedUnit: 'stuk', unitType: 'count', score: 1 })),
   ]);
   assert.equal(kinds.length, 2);
-  assert.equal(needsKindChoice(kinds), false);
+  assert.equal(needsKindChoice(kinds), true);
 });

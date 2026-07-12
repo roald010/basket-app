@@ -36,21 +36,22 @@ export type ProductKind = {
   chainCount: number;
   /** Cheapest price seen for this kind ("vanaf €X"). */
   fromPrice: number;
-  /** Mean trigram-similarity score of the candidates behind this kind -- how well it
-   * matches what the user actually typed, independent of how many chains carry it.
-   * Drives both the "most likely first" ordering and needsKindChoice()'s ambiguity check. */
+  /** Mean word_similarity score of the candidates behind this kind -- how well it matches
+   * what the user actually typed. Drives "most likely first" ordering; NOT a reliable
+   * signal for telling kinds apart (see MIN_PLAUSIBLE_CONFIDENCE below) -- word_similarity
+   * scores a genuine word match ~1.0 almost regardless of the rest of the product name, so
+   * two truly different kinds of the same item (small vs. big block of cheese) both come
+   * back near-maximal confidence. Chain breadth, not confidence, is what actually tells them
+   * apart (see needsKindChoice). */
   confidence: number;
 };
 
 const MAX_KINDS = 4;
 
 // A kind's confidence must clear this to count as a plausible reading of the typed name at
-// all -- mirrors match_list_items()'s own 0.3 "matched" cutoff, so "barely resembles it"
-// candidates can't force a choice.
-const MIN_PLAUSIBLE_CONFIDENCE = 0.3;
-// How close the top two kinds' confidence must be to count as genuine doubt. Below this gap,
-// the top kind is a clearly better guess and no user decision is needed.
-const CONFIDENCE_GAP_THRESHOLD = 0.1;
+// all -- mirrors match_list_items()'s own 0.5 "matched" cutoff (both post-word_similarity),
+// so a coincidental low-score candidate can't become an offered kind in the first place.
+const MIN_PLAUSIBLE_CONFIDENCE = 0.5;
 
 // Convert a product's original unit to its base unit (gram / milliliter / piece) so sizes
 // are comparable within a unit_type -- mirrors the ingest function's unit factors.
@@ -167,10 +168,16 @@ export function standardizeVariants(candidates: ProductCandidate[]): ProductKind
     });
   }
 
-  // Most-likely-first: confidence (how well it matches what was typed) is the primary
-  // signal, not chain breadth -- a widely-stocked but poorly-matching kind shouldn't
-  // outrank a kind that's clearly what the user meant. Breadth and price only break ties.
-  const ranked = kinds.sort(
+  // Drop coincidental low-score candidates before anything else -- word_similarity can still
+  // clear the SQL layer's own floor on a weak, not-really-relevant match; a kind built only
+  // from those shouldn't be offered at all, ambiguous or not.
+  const plausible = kinds.filter((kind) => kind.confidence >= MIN_PLAUSIBLE_CONFIDENCE);
+  const pool = plausible.length > 0 ? plausible : kinds;
+
+  // Most-likely-first: confidence still orders kinds when it DOES differ, but ties (the
+  // common case -- see the confidence field's own comment) fall back to chain breadth then
+  // price, so the widest-available, cheapest reading of a tie leads.
+  const ranked = pool.sort(
     (a, b) => b.confidence - a.confidence || b.chainCount - a.chainCount || a.fromPrice - b.fromPrice
   );
   // Prefer kinds carried by multiple chains -- the "available at many supermarkets" promise,
@@ -181,15 +188,14 @@ export function standardizeVariants(candidates: ProductCandidate[]): ProductKind
 }
 
 /**
- * True only when there's genuine doubt about which kind the user meant: at least two kinds
- * are both plausible readings of the typed name (confidence >= MIN_PLAUSIBLE_CONFIDENCE) and
- * neither clearly beats the other. When one kind is a clearly better guess, no user decision
- * is needed -- match_list_items() already resolves it via its own scoring. `kinds` must be
- * standardizeVariants()'s output (confidence-sorted); only the top two are compared.
+ * True when there's more than one plausible, reasonably common kind to choose between --
+ * e.g. courgette genuinely sold both per-kg and per-piece at several chains each. Confidence
+ * can't discriminate "genuine doubt" here (see the field's own comment: word_similarity
+ * scores any real word match ~1.0, so two truly different kinds usually tie on confidence);
+ * standardizeVariants() has already dropped implausible and single-chain-oddity kinds by the
+ * time this runs, so surviving multiplicity itself is the signal. `kinds` must be
+ * standardizeVariants()'s output.
  */
 export function needsKindChoice(kinds: ProductKind[]): boolean {
-  if (kinds.length < 2) return false;
-  const [top, runnerUp] = kinds;
-  if (runnerUp.confidence < MIN_PLAUSIBLE_CONFIDENCE) return false;
-  return top.confidence - runnerUp.confidence <= CONFIDENCE_GAP_THRESHOLD;
+  return kinds.length > 1;
 }
