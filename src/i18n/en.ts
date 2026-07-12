@@ -90,8 +90,10 @@ export const en: Dictionary = {
     tierBudget: 'Budget',
     tierStandard: 'Standard',
     tierPremium: 'Premium',
-    chooseTierFor: (name: string) => `Tier for "${name}"`,
-    useDefaultTier: 'Use shopper profile',
+    chooseKindHint: 'Which kind do you mean?',
+    needsChoice: 'pick kind',
+    kindAvailability: (n: number) => `at ${n} store${n === 1 ? '' : 's'}`,
+    kindFrom: 'from',
   },
   shopping: {
     total: 'Total',

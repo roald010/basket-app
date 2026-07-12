@@ -90,8 +90,10 @@ export const nl = {
     tierBudget: 'Budget',
     tierStandard: 'Standaard',
     tierPremium: 'Premium',
-    chooseTierFor: (name: string) => `Tier voor "${name}"`,
-    useDefaultTier: 'Gebruik shopper-profiel',
+    chooseKindHint: 'Welke soort bedoel je?',
+    needsChoice: 'kies soort',
+    kindAvailability: (n: number) => `in ${n} winkel${n === 1 ? '' : 's'}`,
+    kindFrom: 'vanaf',
   },
   shopping: {
     total: 'Totaal',

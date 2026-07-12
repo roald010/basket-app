@@ -6,8 +6,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { AnimatedPressable } from '@/components/ui/animated-pressable';
 import { BackButton } from '@/components/ui/back-button';
-import { Dialog } from '@/components/ui/dialog';
 import { Expandable } from '@/components/ui/expandable';
 import { HonestGapCard } from '@/components/ui/honest-gap-card';
 import { ListItemRow } from '@/components/ui/list-item-row';
@@ -27,15 +27,17 @@ import {
 } from '@/features/lists/api';
 import {
   toOptimizerItems,
+  useListItemCandidatesQuery,
   useListItemMatchesQuery,
   useMatchListItemsMutation,
-  useSetItemTierOverrideMutation,
+  useSetItemVariantMutation,
   type ProductTier,
 } from '@/features/matching/api';
 import { assignItems, bestCombos } from '@/features/matching/optimize';
+import { standardizeVariants, type ProductKind } from '@/features/matching/variants';
 import { useCommitSelectionMutation } from '@/features/shopping/api';
 import { useStoresQuery } from '@/features/stores/api';
-import { BottomTabInset, Fonts, MaxContentWidth, Spacing } from '@/constants/theme';
+import { BottomTabInset, BrandColors, Fonts, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useTranslation } from '@/i18n';
 import { formatListDate } from '@/lib/format-date';
@@ -43,6 +45,17 @@ import { formatListDate } from '@/lib/format-date';
 function useStoreComparison(listId: string, includeStaples: boolean) {
   const { data: matches = [] } = useListItemMatchesQuery(listId);
   const { data: stores = [] } = useStoresQuery();
+  const { data: candidatesByItem } = useListItemCandidatesQuery(listId);
+
+  // Collapse each item's raw candidate products into a few store-agnostic "kinds" the user
+  // can pick between (see features/matching/variants). Empty until the migration is applied.
+  const itemKinds = useMemo(() => {
+    const map = new Map<string, ProductKind[]>();
+    if (candidatesByItem) {
+      for (const [itemId, candidates] of candidatesByItem) map.set(itemId, standardizeVariants(candidates));
+    }
+    return map;
+  }, [candidatesByItem]);
 
   // Only staple-sourced rows are ever excluded, and only when the toggle is off --
   // recipe and manual ("Losse producten") rows always count toward Compare.
@@ -134,6 +147,7 @@ function useStoreComparison(listId: string, includeStaples: boolean) {
     stapleItems: stapleMatches,
     staplePrice,
     manualItems,
+    itemKinds,
   };
 }
 
@@ -150,7 +164,7 @@ export default function ListHubScreen() {
   const setIncludeStaplesMutation = useSetIncludeStaplesMutation();
   const addManualItemMutation = useAddManualItemMutation();
   const removeListItemMutation = useRemoveListItemMutation();
-  const setTierOverrideMutation = useSetItemTierOverrideMutation(id);
+  const setVariantMutation = useSetItemVariantMutation(id);
   const matchTriggeredForListRef = useRef<string | null>(null);
   const matchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const {
@@ -166,6 +180,7 @@ export default function ListHubScreen() {
     stapleItems,
     staplePrice,
     manualItems,
+    itemKinds,
   } = useStoreComparison(id, list?.includeStaples ?? true);
   const [selectedCount, setSelectedCount] = useState('1');
   const [isRenaming, setIsRenaming] = useState(false);
@@ -175,8 +190,11 @@ export default function ListHubScreen() {
   const [isAddingProduct, setIsAddingProduct] = useState(false);
   const [newProductName, setNewProductName] = useState('');
   const [isCompareOpen, setIsCompareOpen] = useState(false);
-  const [pendingTierItemId, setPendingTierItemId] = useState<string | null>(null);
-  const pendingTierItem = matches.find((match) => match.listItemId === pendingTierItemId) ?? null;
+  const [pendingChoiceItemId, setPendingChoiceItemId] = useState<string | null>(null);
+  const pendingChoiceItem = matches.find((match) => match.listItemId === pendingChoiceItemId) ?? null;
+  const pendingChoiceKinds = pendingChoiceItemId ? itemKinds.get(pendingChoiceItemId) ?? [] : [];
+
+  const kindsFor = (itemId: string) => itemKinds.get(itemId) ?? [];
 
   function toggleRecipeExpanded(recipeId: string) {
     setExpandedRecipeIds((current) => {
@@ -214,13 +232,12 @@ export default function ListHubScreen() {
     removeListItemMutation.mutate({ id: itemId, listId: id }, { onSuccess: scheduleMatch });
   }
 
-  // Setting a tier doesn't re-pick a product by itself -- match_list_items() is what
-  // actually resolves coalesce(tier_override, profile default) into a matched_product_id,
-  // so an override needs an immediate rematch (not the debounced scheduleMatch) to show
-  // its effect right away.
-  function handleSetTier(itemId: string, tier: ProductTier | null) {
-    setTierOverrideMutation.mutate(
-      { itemId, tier },
+  // Picking a kind doesn't re-price by itself -- match_list_items() is what resolves the
+  // variant_* constraints into a matched_product_id per chain, so a choice needs an
+  // immediate rematch (not the debounced scheduleMatch) to show its effect right away.
+  function handleChooseKind(itemId: string, kind: ProductKind | null) {
+    setVariantMutation.mutate(
+      { itemId, kind },
       {
         onSuccess: () =>
           matchMutation.mutate(id, {
@@ -228,7 +245,7 @@ export default function ListHubScreen() {
           }),
       }
     );
-    setPendingTierItemId(null);
+    setPendingChoiceItemId(null);
   }
 
   function startRenaming() {
@@ -365,7 +382,8 @@ export default function ListHubScreen() {
                         price={itemPrices.get(item.listItemId)}
                         matchedProductName={itemProductInfo.get(item.listItemId)?.name}
                         matchedProductTier={itemProductInfo.get(item.listItemId)?.tier}
-                        onPress={() => setPendingTierItemId(item.listItemId)}
+                        needsChoice={kindsFor(item.listItemId).length > 1 && !item.variantLabel}
+                        onPress={kindsFor(item.listItemId).length > 0 ? () => setPendingChoiceItemId(item.listItemId) : undefined}
                       />
                     ))}
                   </Expandable>
@@ -421,7 +439,8 @@ export default function ListHubScreen() {
                       price={itemPrices.get(item.listItemId)}
                       matchedProductName={itemProductInfo.get(item.listItemId)?.name}
                       matchedProductTier={itemProductInfo.get(item.listItemId)?.tier}
-                      onPress={() => setPendingTierItemId(item.listItemId)}
+                      needsChoice={kindsFor(item.listItemId).length > 1 && !item.variantLabel}
+                      onPress={kindsFor(item.listItemId).length > 0 ? () => setPendingChoiceItemId(item.listItemId) : undefined}
                     />
                   ))}
                 </Expandable>
@@ -441,7 +460,8 @@ export default function ListHubScreen() {
                   price={itemPrices.get(item.listItemId)}
                   matchedProductName={itemProductInfo.get(item.listItemId)?.name}
                   matchedProductTier={itemProductInfo.get(item.listItemId)?.tier}
-                  onPress={() => setPendingTierItemId(item.listItemId)}
+                  needsChoice={kindsFor(item.listItemId).length > 1 && !item.variantLabel}
+                  onPress={kindsFor(item.listItemId).length > 0 ? () => setPendingChoiceItemId(item.listItemId) : undefined}
                   onRemove={() => handleRemoveManualProduct(item.listItemId)}
                 />
               ))}
@@ -559,17 +579,62 @@ export default function ListHubScreen() {
         </Modal>
       )}
 
-      <Dialog
-        visible={pendingTierItem !== null}
-        onClose={() => setPendingTierItemId(null)}
-        title={pendingTierItem ? t.listHub.chooseTierFor(pendingTierItem.name) : ''}
-        actions={[
-          { label: t.listHub.tierBudget, variant: pendingTierItem?.tierOverride === 'budget' ? 'primary-green' : 'outline', onPress: () => pendingTierItem && handleSetTier(pendingTierItem.listItemId, 'budget') },
-          { label: t.listHub.tierStandard, variant: pendingTierItem?.tierOverride === 'standard' ? 'primary-green' : 'outline', onPress: () => pendingTierItem && handleSetTier(pendingTierItem.listItemId, 'standard') },
-          { label: t.listHub.tierPremium, variant: pendingTierItem?.tierOverride === 'premium' ? 'primary-green' : 'outline', onPress: () => pendingTierItem && handleSetTier(pendingTierItem.listItemId, 'premium') },
-          { label: t.listHub.useDefaultTier, onPress: () => pendingTierItem && handleSetTier(pendingTierItem.listItemId, null) },
-        ]}
-      />
+      <Modal
+        visible={pendingChoiceItem !== null}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setPendingChoiceItemId(null)}>
+        <View style={styles.sheetBackdrop}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setPendingChoiceItemId(null)} />
+          <View pointerEvents="box-none">
+            <ThemedView style={styles.sheet}>
+              <View style={styles.sheetHeader}>
+                <ThemedText type="subtitle" numberOfLines={1} style={styles.sheetTitle}>
+                  {pendingChoiceItem?.name}
+                </ThemedText>
+                <Pressable onPress={() => setPendingChoiceItemId(null)} hitSlop={Spacing.two}>
+                  <ThemedText type="smallBold" themeColor="textSecondary">
+                    ✕
+                  </ThemedText>
+                </Pressable>
+              </View>
+              <ThemedText type="small" themeColor="textSecondary">
+                {t.listHub.chooseKindHint}
+              </ThemedText>
+
+              {pendingChoiceKinds.map((kind) => {
+                const selected = pendingChoiceItem?.variantLabel === kind.label;
+                return (
+                  <AnimatedPressable
+                    key={kind.label}
+                    scaleTo={0.98}
+                    onPress={() => pendingChoiceItem && handleChooseKind(pendingChoiceItem.listItemId, kind)}
+                    style={[
+                      styles.kindRow,
+                      { backgroundColor: theme.background, borderColor: selected ? BrandColors.green : theme.backgroundElement },
+                    ]}>
+                    <View style={styles.kindText}>
+                      <ThemedText type="smallBold" numberOfLines={1}>
+                        {kind.label}
+                      </ThemedText>
+                      <ThemedText type="small" themeColor="textSecondary">
+                        {t.listHub.kindAvailability(kind.chainCount)}
+                      </ThemedText>
+                    </View>
+                    <View style={styles.kindPrice}>
+                      <ThemedText type="small" themeColor="textSecondary">
+                        {t.listHub.kindFrom}
+                      </ThemedText>
+                      <PriceText amount={kind.fromPrice} type="small" />
+                    </View>
+                    {selected && <ThemedText style={styles.kindCheck}>✓</ThemedText>}
+                  </AnimatedPressable>
+                );
+              })}
+            </ThemedView>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -676,5 +741,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  sheetTitle: {
+    flexShrink: 1,
+  },
+  kindRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: Spacing.three,
+  },
+  kindText: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  kindPrice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+  },
+  kindCheck: {
+    color: BrandColors.green,
   },
 });

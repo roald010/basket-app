@@ -4,7 +4,7 @@ import { ThemedText } from '@/components/themed-text';
 import { PriceText } from '@/components/ui/price-text';
 import { ProductIcon, matchProductCategory } from '@/components/ui/product-icon';
 import type { ProductTier } from '@/features/matching/api';
-import { Spacing } from '@/constants/theme';
+import { BrandColors, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useTranslation } from '@/i18n';
 
@@ -18,7 +18,10 @@ export type ListItemRowProps = {
    * as a caption so it's clear which real product (and tier) the price is for. */
   matchedProductName?: string | null;
   matchedProductTier?: ProductTier | null;
-  /** Opens the tier-override picker; only passed for items that can be re-matched. */
+  /** Shows a "kies soort" pill: the item resolves to several distinct product kinds and
+   * the user hasn't chosen one yet. Tapping the row opens the kind chooser. */
+  needsChoice?: boolean;
+  /** Opens the product-kind chooser; only passed for items that can be re-matched. */
   onPress?: () => void;
   onRemove?: () => void;
 };
@@ -33,6 +36,7 @@ export function ListItemRow({
   price,
   matchedProductName,
   matchedProductTier,
+  needsChoice,
   onPress,
   onRemove,
 }: ListItemRowProps) {
@@ -54,6 +58,13 @@ export function ListItemRow({
           </ThemedText>
         )}
       </View>
+      {needsChoice && (
+        <View style={[styles.pill, { borderColor: BrandColors.green }]}>
+          <ThemedText type="small" style={{ color: BrandColors.green }}>
+            {t.listHub.needsChoice}
+          </ThemedText>
+        </View>
+      )}
       {quantity != null && (
         <ThemedText type="small" themeColor="textSecondary">
           {quantity}
@@ -89,5 +100,11 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     gap: 1,
+  },
+  pill: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: Spacing.one + 2,
+    paddingVertical: 1,
   },
 });
