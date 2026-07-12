@@ -30,6 +30,15 @@ export function useUserStoresQuery() {
   return useQuery({ queryKey: QUERY_KEY, queryFn: fetchUserStores });
 }
 
+/** Plain (non-hook) fetch of just the user's chosen chain slugs -- for filtering Compare's
+ * recommendations to only those stores from a queryFn (e.g. features/lists/api.ts's
+ * fetchLists), which can't call the useUserStoresQuery() hook above. */
+export async function fetchUserStoreSlugs(): Promise<Set<string>> {
+  const { data, error } = await supabase.from('user_stores').select('chain_slug');
+  if (error) throw error;
+  return new Set(data.map((row) => row.chain_slug));
+}
+
 async function addUserStore(chainSlug: string): Promise<void> {
   const {
     data: { session },

@@ -37,6 +37,7 @@ import { assignItems, bestCombos } from '@/features/matching/optimize';
 import { needsKindChoice, standardizeVariants, type ProductKind } from '@/features/matching/variants';
 import { useCommitSelectionMutation } from '@/features/shopping/api';
 import { useStoresQuery } from '@/features/stores/api';
+import { useUserStoresQuery } from '@/features/stores/user-stores-api';
 import { BottomTabInset, BrandColors, Fonts, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useTranslation } from '@/i18n';
@@ -45,7 +46,14 @@ import { formatListDate } from '@/lib/format-date';
 function useStoreComparison(listId: string, includeStaples: boolean) {
   const { data: matches = [] } = useListItemMatchesQuery(listId);
   const { data: stores = [] } = useStoresQuery();
+  const { data: userStores = [] } = useUserStoresQuery();
   const { data: candidatesByItem } = useListItemCandidatesQuery(listId);
+
+  // Compare only ever recommends stores the user has actually chosen in Profile ("Mijn
+  // supermarkten") -- match_list_items() itself still prices every active chain (so a
+  // newly-added store doesn't need a re-match to show up), but the optimizer inputs below
+  // are filtered down before ranking combos, so an unchosen chain is never suggested.
+  const allowedChainSlugs = useMemo(() => new Set(userStores.map((store) => store.chainSlug)), [userStores]);
 
   // Collapse each item's raw candidate products into a few store-agnostic "kinds" the user
   // can pick between (see features/matching/variants). Empty until the migration is applied.
@@ -63,7 +71,10 @@ function useStoreComparison(listId: string, includeStaples: boolean) {
     () => matches.filter((match) => includeStaples || match.sourceType !== 'staple'),
     [matches, includeStaples]
   );
-  const optimizerItems = useMemo(() => toOptimizerItems(includedMatches), [includedMatches]);
+  const optimizerItems = useMemo(
+    () => toOptimizerItems(includedMatches, allowedChainSlugs),
+    [includedMatches, allowedChainSlugs]
+  );
   const combos = useMemo(() => bestCombos(optimizerItems), [optimizerItems]);
   const storesBySlug = useMemo(() => new Map(stores.map((store) => [store.slug, store])), [stores]);
 
@@ -99,7 +110,10 @@ function useStoreComparison(listId: string, includeStaples: boolean) {
   // currently priced -- same honest-gap rule as ListSummary.bestSingleStoreTotal: only a
   // full-coverage single store earns a headline price.
   const stapleMatches = useMemo(() => matches.filter((match) => match.sourceType === 'staple'), [matches]);
-  const stapleOptimizerItems = useMemo(() => toOptimizerItems(stapleMatches), [stapleMatches]);
+  const stapleOptimizerItems = useMemo(
+    () => toOptimizerItems(stapleMatches, allowedChainSlugs),
+    [stapleMatches, allowedChainSlugs]
+  );
   const stapleBestCombo = useMemo(() => bestCombos(stapleOptimizerItems, 1)[0], [stapleOptimizerItems]);
   const staplePrice =
     stapleOptimizerItems.length > 0 && stapleBestCombo?.coveredCount === stapleOptimizerItems.length

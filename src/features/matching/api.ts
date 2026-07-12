@@ -32,12 +32,18 @@ export type ListItemMatchRow = {
   chains: ItemChainMatch[];
 };
 
-/** Narrows match rows to the (chain, price) pairs the optimizer consumes -- matched rows with a real price only. */
-export function toOptimizerItems(rows: ListItemMatchRow[]): OptimizerItem[] {
+/** Narrows match rows to the (chain, price) pairs the optimizer consumes -- matched rows
+ * with a real price only. When `allowedChainSlugs` is given, chains outside it are dropped
+ * too, so Compare only ever recommends stores from the user's own "Mijn supermarkten"
+ * (Profile) -- never a chain they haven't chosen, even if match_list_items() priced it. */
+export function toOptimizerItems(rows: ListItemMatchRow[], allowedChainSlugs?: Set<string>): OptimizerItem[] {
   return rows.map((row) => ({
     listItemId: row.listItemId,
     prices: row.chains
-      .filter((chain): chain is ItemChainMatch & { price: number } => chain.matchStatus === 'matched' && chain.price != null)
+      .filter(
+        (chain): chain is ItemChainMatch & { price: number } =>
+          chain.matchStatus === 'matched' && chain.price != null && (!allowedChainSlugs || allowedChainSlugs.has(chain.chainSlug))
+      )
       .map((chain) => ({ chainSlug: chain.chainSlug, price: chain.price })),
   }));
 }

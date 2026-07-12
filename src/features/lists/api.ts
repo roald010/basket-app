@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { bestCombos, type OptimizerItem } from '@/features/matching/optimize';
+import { fetchUserStoreSlugs } from '@/features/stores/user-stores-api';
 import type { Locale } from '@/i18n';
 import { formatNewListName } from '@/lib/format-date';
 import { embeddedOne } from '@/lib/postgrest';
@@ -241,12 +242,15 @@ export type ListSummary = {
 };
 
 async function fetchLists(): Promise<ListSummary[]> {
-  const { data, error } = await supabase
-    .from('lists')
-    .select(
-      'id, name, created_at, recipes(id), list_items(id, source_type, list_item_matches(chain_slug, match_status, products(price)))'
-    )
-    .order('created_at', { ascending: false });
+  const [{ data, error }, allowedChainSlugs] = await Promise.all([
+    supabase
+      .from('lists')
+      .select(
+        'id, name, created_at, recipes(id), list_items(id, source_type, list_item_matches(chain_slug, match_status, products(price)))'
+      )
+      .order('created_at', { ascending: false }),
+    fetchUserStoreSlugs(),
+  ]);
   if (error) throw error;
 
   // An empty list -- no recipes, no manually-added products -- exists the moment
@@ -258,11 +262,15 @@ async function fetchLists(): Promise<ListSummary[]> {
   return data
     .filter((list) => list.recipes.length > 0 || list.list_items.some((item) => item.source_type === 'manual'))
     .map((list) => {
+      // Only the user's own chosen chains ("Mijn supermarkten") count toward this preview
+      // total -- same rule as List Hub's Compare (features/matching/api.ts's toOptimizerItems).
       const items: OptimizerItem[] = list.list_items.map((item) => ({
         listItemId: item.id,
         prices: item.list_item_matches.flatMap((match) => {
           const price = embeddedOne(match.products)?.price;
-          return match.match_status === 'matched' && price != null ? [{ chainSlug: match.chain_slug, price }] : [];
+          return match.match_status === 'matched' && price != null && allowedChainSlugs.has(match.chain_slug)
+            ? [{ chainSlug: match.chain_slug, price }]
+            : [];
         }),
       }));
 
