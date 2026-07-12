@@ -30,7 +30,8 @@ test('a date earlier this year omits the (current) year', () => {
   assert.notEqual(label, 'today');
 });
 
-test('new-list name is prefixed and localized', () => {
-  assert.match(formatNewListName('nl'), /^Lijst: .+/);
-  assert.match(formatNewListName('en'), /^List: .+/);
+test('new-list name is a capitalized weekday + day + month label, no prefix', () => {
+  const monday = new Date(2026, 6, 6); // Monday 6 July 2026
+  assert.equal(formatNewListName('nl', monday), 'Maandag 6 Juli');
+  assert.equal(formatNewListName('en', monday), 'Monday July 6');
 });
