@@ -192,6 +192,9 @@ export function useAddManualItemMutation() {
     onSuccess: (_data, { listId }) => {
       queryClient.invalidateQueries({ queryKey: ['list', listId] });
       queryClient.invalidateQueries({ queryKey: ['list-item-matches', listId] });
+      // The new item needs its own product-kind candidates fetched, or the chooser
+      // (and its "kies soort" flag) never appears for it -- see features/matching/api.
+      queryClient.invalidateQueries({ queryKey: ['list-item-candidates', listId] });
     },
   });
 }
@@ -208,6 +211,7 @@ export function useRemoveListItemMutation() {
     onSuccess: (_data, { listId }) => {
       queryClient.invalidateQueries({ queryKey: ['list', listId] });
       queryClient.invalidateQueries({ queryKey: ['list-item-matches', listId] });
+      queryClient.invalidateQueries({ queryKey: ['list-item-candidates', listId] });
     },
   });
 }
