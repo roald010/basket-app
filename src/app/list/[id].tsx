@@ -192,6 +192,11 @@ export default function ListHubScreen() {
   const [pendingChoiceItemId, setPendingChoiceItemId] = useState<string | null>(null);
   const pendingChoiceItem = matches.find((match) => match.listItemId === pendingChoiceItemId) ?? null;
   const pendingChoiceKinds = pendingChoiceItemId ? itemKinds.get(pendingChoiceItemId) ?? [] : [];
+  // Whichever kind is actually in effect right now -- the user's own explicit pick, or (if
+  // they haven't chosen yet) the same best-guess kind already shown as the row's caption --
+  // so the sheet always visibly marks a selection, not just after an explicit tap.
+  const pendingEffectiveLabel = pendingChoiceItem?.variantLabel ?? pendingChoiceKinds[0]?.label ?? null;
+  const pendingIsExplicitChoice = pendingChoiceItem?.variantLabel != null;
 
   const kindsFor = (itemId: string) => itemKinds.get(itemId) ?? [];
   // Only genuinely ambiguous items (no clear best guess -- see needsKindChoice) prompt the
@@ -607,7 +612,7 @@ export default function ListHubScreen() {
               </ThemedText>
 
               {pendingChoiceKinds.map((kind) => {
-                const selected = pendingChoiceItem?.variantLabel === kind.label;
+                const selected = pendingEffectiveLabel === kind.label;
                 return (
                   <AnimatedPressable
                     key={kind.label}
@@ -623,6 +628,7 @@ export default function ListHubScreen() {
                       </ThemedText>
                       <ThemedText type="small" themeColor="textSecondary">
                         {t.listHub.kindAvailability(kind.chainCount)}
+                        {selected && !pendingIsExplicitChoice ? ` · ${t.listHub.kindPreselected}` : ''}
                       </ThemedText>
                     </View>
                     <View style={styles.kindPrice}>

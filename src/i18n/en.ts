@@ -87,9 +87,9 @@ export const en: Dictionary = {
     pricingComingSoonTitle: 'Pricing coming soon',
     pricingComingSoonSubtitle: 'Store comparison and pricing land in a later phase.',
     chooseKindHint: 'Which kind do you mean?',
-    needsChoice: 'pick kind',
     kindAvailability: (n: number) => `at ${n} store${n === 1 ? '' : 's'}`,
     kindFrom: 'from',
+    kindPreselected: 'pre-selected',
   },
   shopping: {
     total: 'Total',

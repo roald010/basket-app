@@ -87,9 +87,9 @@ export const nl = {
     pricingComingSoonTitle: 'Prijzen volgen nog',
     pricingComingSoonSubtitle: 'Winkelvergelijking en prijzen komen in een volgende fase.',
     chooseKindHint: 'Welke soort bedoel je?',
-    needsChoice: 'kies soort',
     kindAvailability: (n: number) => `in ${n} winkel${n === 1 ? '' : 's'}`,
     kindFrom: 'vanaf',
+    kindPreselected: 'voorgeselecteerd',
   },
   shopping: {
     total: 'Totaal',
