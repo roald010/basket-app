@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { Button } from '@/components/ui/button';
-import { Stepper } from '@/components/ui/stepper';
+import { ServingsPicker } from '@/components/ui/servings-picker';
 import { clearDraft, getDraft, type DraftIngredient } from '@/features/capture/draft-store';
 import { useCommitRecipeMutation } from '@/features/recipes/api';
 import { Spacing } from '@/constants/theme';
@@ -31,22 +31,33 @@ export default function ReviewScreen() {
 
   // The edge function already scaled quantities to the initial cook-for count. Divide
   // that back out to recover the as-written amount per the recipe's own serving count:
-  // base = scaled * source / initialTarget. This cancels cleanly even when the detected
-  // source is wrong (both the scale-up and this scale-down use the same source), so the
-  // recipe-serving stepper below can correct a bad detection and re-scale accurately.
+  // base = scaled * source / target. This cancels cleanly even when the detected source is
+  // wrong (both the scale-up and this scale-down use the same source/target the edge
+  // function itself used) -- so it must stay servingsSource/servingsTarget, never the
+  // user-facing presets below, or the cancellation breaks and every quantity comes out
+  // scaled by a stray factor.
   const initialSource = Math.max(1, draft?.servingsSource ?? 1);
   const initialTarget = Math.max(1, draft?.servingsTarget ?? 2);
+  // What's actually shown to the user starts from their own Capture-screen choices
+  // (recipeServingsPreset -- "Recept voor" -- and servingsTarget, which Capture now sends
+  // as its "Ik kook voor" value) rather than the model's possibly-wrong detected count --
+  // still just the starting point, both remain correctable by the steppers below.
+  const initialRecipeServings = Math.max(1, draft?.recipeServingsPreset ?? initialSource);
+  const initialCookServings = initialTarget;
 
-  const [ingredients, setIngredients] = useState<ReviewIngredient[]>(
-    () =>
-      draft?.ingredients.map((ingredient, index) => ({
+  const [ingredients, setIngredients] = useState<ReviewIngredient[]>(() =>
+    (draft?.ingredients ?? []).map((ingredient, index) => {
+      const base = ingredient.quantity === null ? null : round2((ingredient.quantity * initialSource) / initialTarget);
+      return {
         ...ingredient,
         id: index,
-        base: ingredient.quantity === null ? null : round2((ingredient.quantity * initialSource) / initialTarget),
-      })) ?? []
+        base,
+        quantity: base === null ? ingredient.quantity : round2((base * initialCookServings) / initialRecipeServings),
+      };
+    })
   );
-  const [recipeServings, setRecipeServings] = useState(initialSource);
-  const [cookServings, setCookServings] = useState(initialTarget);
+  const [recipeServings, setRecipeServings] = useState(initialRecipeServings);
+  const [cookServings, setCookServings] = useState(initialCookServings);
   const nextId = useRef(ingredients.length);
 
   // No draft (e.g. deep-linked directly, or a stale reload) -- nothing to review.
@@ -144,21 +155,12 @@ export default function ReviewScreen() {
       </View>
 
       <View style={styles.servingsWrap}>
-        <View style={[styles.servingsCard, { backgroundColor: theme.background, borderColor: theme.backgroundElement }]}>
-          <View style={styles.servingsRow}>
-            <ThemedText type="smallBold" style={styles.servingsLabel}>
-              {t.review.servingsRecipeLabel}
-            </ThemedText>
-            <Stepper value={recipeServings} onChange={changeRecipeServings} min={1} max={20} />
-          </View>
-          <View style={[styles.servingsDivider, { backgroundColor: theme.backgroundElement }]} />
-          <View style={styles.servingsRow}>
-            <ThemedText type="smallBold" style={styles.servingsLabel}>
-              {t.review.servingsTargetLabel}
-            </ThemedText>
-            <Stepper value={cookServings} onChange={changeCookServings} min={1} max={20} />
-          </View>
-        </View>
+        <ServingsPicker
+          recipeServings={recipeServings}
+          onRecipeServingsChange={changeRecipeServings}
+          cookServings={cookServings}
+          onCookServingsChange={changeCookServings}
+        />
         {showScaledNote && (
           <ThemedText type="small" style={[styles.scaledNote, { color: theme.chipCheapestBg }]}>
             {t.review.servingsScaledNote(recipeServings, cookServings)}
@@ -269,25 +271,6 @@ const styles = StyleSheet.create({
     gap: Spacing.one,
     paddingHorizontal: Spacing.four,
     paddingBottom: Spacing.three,
-  },
-  servingsCard: {
-    borderWidth: 1,
-    borderRadius: 16,
-    paddingHorizontal: Spacing.three,
-  },
-  servingsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: Spacing.three,
-    paddingVertical: Spacing.two + Spacing.half,
-  },
-  servingsLabel: {
-    flex: 1,
-    minWidth: 0,
-  },
-  servingsDivider: {
-    height: 1,
   },
   scaledNote: {
     paddingHorizontal: Spacing.one,

@@ -6,18 +6,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { Button } from '@/components/ui/button';
 import { SegmentedControl } from '@/components/ui/segmented-control';
+import { ServingsPicker } from '@/components/ui/servings-picker';
 import { setDraft } from '@/features/capture/draft-store';
 import { useParseRecipeMutation } from '@/features/recipes/api';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useTranslation } from '@/i18n';
 
-// parse-recipe scales quantities by servingsTarget/servingsDetected, but review.tsx
-// immediately divides that same factor back out to recover the as-written amount (see
-// its `base` comment) -- the two cancel exactly regardless of which target was sent, so
-// this value never affects what the user sees. The real "how many people" input lives on
-// the Review screen (recipe's own count + cook-for count, both correctable there), not here.
-const PARSE_SERVINGS_TARGET = 1;
+// Typical recipe convention and a common household size -- both fully editable below and
+// again on Review before anything is actually committed.
+const DEFAULT_RECIPE_SERVINGS = 4;
+const DEFAULT_COOK_SERVINGS = 2;
 
 export default function CaptureScreen() {
   const { t } = useTranslation();
@@ -27,6 +26,8 @@ export default function CaptureScreen() {
 
   const [mode, setMode] = useState('text');
   const [text, setText] = useState('');
+  const [recipeServings, setRecipeServings] = useState(DEFAULT_RECIPE_SERVINGS);
+  const [cookServings, setCookServings] = useState(DEFAULT_COOK_SERVINGS);
   const [error, setError] = useState<string | null>(null);
   const parseRecipe = useParseRecipeMutation();
 
@@ -47,8 +48,12 @@ export default function CaptureScreen() {
       setError(t.capture.pasteSomethingFirst);
       return;
     }
+    // Sent as-is: the model's own detected serving count and this target are only used to
+    // recover each ingredient's as-written amount on Review (see its `base` comment) --
+    // that recovery is exact regardless of which target is sent. recipeServings is applied
+    // separately, as recipeServingsPreset, once Review actually computes display quantities.
     parseRecipe.mutate(
-      { text, servingsTarget: PARSE_SERVINGS_TARGET },
+      { text, servingsTarget: cookServings },
       {
         onSuccess: (result) => {
           setDraft({
@@ -58,6 +63,7 @@ export default function CaptureScreen() {
             originalText: text,
             servingsSource: result.servingsDetected,
             servingsTarget: result.servingsTarget,
+            recipeServingsPreset: recipeServings,
             ingredients: result.ingredients.map((ingredient) => ({
               ...ingredient,
               quantity: ingredient.quantity || 1,
@@ -105,6 +111,13 @@ export default function CaptureScreen() {
             styles.textArea,
             { color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundElement },
           ]}
+        />
+
+        <ServingsPicker
+          recipeServings={recipeServings}
+          onRecipeServingsChange={setRecipeServings}
+          cookServings={cookServings}
+          onCookServingsChange={setCookServings}
         />
 
         {error && (

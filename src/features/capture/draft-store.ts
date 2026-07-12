@@ -14,6 +14,12 @@ export type RecipeDraft = {
   originalText: string;
   servingsSource: number;
   servingsTarget: number;
+  /** The "Recept voor" value the user set on Capture, before parsing -- Review's own
+   * recipe-serving stepper starts here instead of the model's detected count (which may be
+   * a guess when the pasted text never states it), without disturbing servingsSource/
+   * servingsTarget above, which review.tsx still needs unchanged to correctly recover each
+   * ingredient's as-written amount from the model's scaled response. */
+  recipeServingsPreset: number;
   ingredients: DraftIngredient[];
 };
 
