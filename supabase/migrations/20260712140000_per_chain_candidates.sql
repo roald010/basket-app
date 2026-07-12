@@ -4,7 +4,12 @@
 -- so the standardized kinds came out as "available at 1 store" -- the opposite of the
 -- store-agnostic "available at many supermarkets" goal. Per-chain retrieval gives every
 -- active chain a fair share, so a size-band kind spans the chains that actually carry it.
-create or replace function get_list_item_candidates(p_list_id uuid, p_per_chain int default 6)
+--
+-- Postgres refuses CREATE OR REPLACE when a parameter is renamed but the argument types
+-- stay the same (here: p_per_item -> p_per_chain), so the old signature must be dropped first.
+drop function if exists get_list_item_candidates(uuid, int);
+
+create function get_list_item_candidates(p_list_id uuid, p_per_chain int default 6)
 returns table (
   list_item_id uuid,
   product_id bigint,
