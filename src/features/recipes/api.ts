@@ -1,9 +1,8 @@
 import { useMutation } from '@tanstack/react-query';
 
 import type { DraftIngredient } from '@/features/capture/draft-store';
-import { seedStaples } from '@/features/lists/api';
+import { resolveNewListName, seedStaples } from '@/features/lists/api';
 import type { Locale } from '@/i18n';
-import { formatNewListName } from '@/lib/format-date';
 import { supabase } from '@/lib/supabase';
 
 export type ParsedIngredient = { name: string; quantity: number; unit: string };
@@ -41,11 +40,8 @@ export type CommitRecipeInput = {
 
 async function resolveListId(listId: string | null, userId: string, locale: Locale): Promise<string> {
   if (listId) return listId;
-  const { data: list, error } = await supabase
-    .from('lists')
-    .insert({ user_id: userId, name: formatNewListName(locale) })
-    .select('id')
-    .single();
+  const name = await resolveNewListName(userId, locale);
+  const { data: list, error } = await supabase.from('lists').insert({ user_id: userId, name }).select('id').single();
   if (error) throw error;
   await seedStaples(list.id, userId);
   return list.id;

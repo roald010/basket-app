@@ -105,7 +105,9 @@ export default function ShoppingScreen() {
         </View>
 
         <View style={styles.titleBlock}>
-          <ThemedText type="title">{listName ?? t.capture.newListDefaultName}</ThemedText>
+          <ThemedText type="title" numberOfLines={2}>
+            {listName ?? t.capture.newListDefaultName}
+          </ThemedText>
           {total > 0 && (
             <ThemedText type="small" themeColor="textSecondary">
               {t.shopping.total} <PriceText amount={total} type="small" />

@@ -77,6 +77,24 @@ export async function seedStaples(listId: string, userId: string): Promise<void>
   if (itemsError) throw itemsError;
 }
 
+/** Resolves the name for a brand-new list: the date-based default (formatNewListName),
+ * suffixed " (2)", " (3)", etc. when this user already has another list with that exact
+ * base name today. Checks actual name collisions rather than counting today's created_at
+ * rows, so a same-day list that's since been renamed away doesn't still "reserve" its
+ * number, and nothing skips a number either. Shared by createList below and
+ * resolveListId's new-list branch in features/recipes/api.ts. */
+export async function resolveNewListName(userId: string, locale: Locale): Promise<string> {
+  const base = formatNewListName(locale);
+  const { data: existing, error } = await supabase.from('lists').select('name').eq('user_id', userId).ilike('name', `${base}%`);
+  if (error) throw error;
+
+  const names = new Set((existing ?? []).map((row) => row.name));
+  if (!names.has(base)) return base;
+  let suffix = 2;
+  while (names.has(`${base} (${suffix})`)) suffix += 1;
+  return `${base} (${suffix})`;
+}
+
 /** The "+ Nieuw" tab creates an empty list and lands on its Hub -- matching the
  * design's flow diagram ("Basket-knop -> lege lijst -> Hub") and the "a list is
  * not a recipe" model: capture is a repeatable action taken *from* the Hub
@@ -87,11 +105,8 @@ async function createList(locale: Locale): Promise<{ id: string }> {
   } = await supabase.auth.getSession();
   if (!session) throw new Error('No active Supabase session');
 
-  const { data, error } = await supabase
-    .from('lists')
-    .insert({ user_id: session.user.id, name: formatNewListName(locale) })
-    .select('id')
-    .single();
+  const name = await resolveNewListName(session.user.id, locale);
+  const { data, error } = await supabase.from('lists').insert({ user_id: session.user.id, name }).select('id').single();
   if (error) throw error;
   await seedStaples(data.id, session.user.id);
   return { id: data.id };

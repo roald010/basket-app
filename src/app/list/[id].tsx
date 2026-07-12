@@ -325,7 +325,9 @@ export default function ListHubScreen() {
                 />
               ) : (
                 <Pressable onPress={startRenaming} style={styles.titleRow}>
-                  <ThemedText type="title">{list.name}</ThemedText>
+                  <ThemedText type="title" numberOfLines={2} style={styles.titleText}>
+                    {list.name}
+                  </ThemedText>
                   <ThemedText themeColor="textSecondary" style={styles.pencil}>
                     ✎
                   </ThemedText>
@@ -647,6 +649,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
+  },
+  // The default name is now a full date label ("Mandje Maandag 6 Juli"), noticeably
+  // longer than the old "Lijst: 2 juni" -- shrink/wrap within the row instead of
+  // overflowing past the pencil icon or off the edge of a narrow phone screen.
+  titleText: {
+    flexShrink: 1,
   },
   pencil: {
     fontSize: 16,
