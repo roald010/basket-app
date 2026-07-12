@@ -153,7 +153,10 @@ export function standardizeVariants(candidates: ProductCandidate[]): ProductKind
     });
   }
 
-  return kinds
-    .sort((a, b) => b.chainCount - a.chainCount || a.fromPrice - b.fromPrice)
-    .slice(0, MAX_KINDS);
+  const ranked = kinds.sort((a, b) => b.chainCount - a.chainCount || a.fromPrice - b.fromPrice);
+  // Prefer kinds carried by multiple chains -- the "available at many supermarkets" promise,
+  // and it drops one-off noise (a lone product at a single chain). Only fall back to
+  // single-chain kinds when there aren't at least two broadly-available ones.
+  const broad = ranked.filter((kind) => kind.chainCount >= 2);
+  return (broad.length >= 2 ? broad : ranked).slice(0, MAX_KINDS);
 }

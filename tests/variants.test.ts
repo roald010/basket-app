@@ -87,6 +87,22 @@ test('kinds are capped at four', () => {
   assert.equal(kinds.length, 4);
 });
 
+test('single-chain noise kinds are dropped when broad (multi-chain) kinds exist', () => {
+  const cands: ProductCandidate[] = [
+    // small block at 3 chains
+    ...['ah', 'jumbo', 'lidl'].map((c, i) =>
+      candidate({ productId: i, chainSlug: c, name: 'Goudse kaas 200 g', parsedQuantity: 200, parsedUnit: 'g', unitType: 'mass', price: 2 + i })),
+    // big block at 2 chains
+    ...['ah', 'jumbo'].map((c, i) =>
+      candidate({ productId: 10 + i, chainSlug: c, name: 'Goudse kaas 1 kg', parsedQuantity: 1, parsedUnit: 'kg', unitType: 'mass', price: 6 + i })),
+    // lone oddball at a single chain, different band
+    candidate({ productId: 20, chainSlug: 'spar', name: 'Kaas rondje', parsedQuantity: 1, parsedUnit: 'stuk', unitType: 'count', price: 0.95 }),
+  ];
+  const kinds = standardizeVariants(cands);
+  assert.equal(kinds.length, 2); // two broad size kinds; the single-chain count kind is dropped
+  assert.ok(kinds.every((k) => k.chainCount >= 2));
+});
+
 test('ties on chain breadth are broken by cheapest price', () => {
   const kinds = standardizeVariants([
     candidate({ productId: 1, chainSlug: 'ah', name: 'Melk 1 l', parsedQuantity: 1, parsedUnit: 'l', unitType: 'volume', price: 1.2 }),
