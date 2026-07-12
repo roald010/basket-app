@@ -31,10 +31,10 @@ import {
   useListItemMatchesQuery,
   useMatchListItemsMutation,
   useSetItemVariantMutation,
-  type ProductTier,
+  type ListItemMatchRow,
 } from '@/features/matching/api';
 import { assignItems, bestCombos } from '@/features/matching/optimize';
-import { standardizeVariants, type ProductKind } from '@/features/matching/variants';
+import { needsKindChoice, standardizeVariants, type ProductKind } from '@/features/matching/variants';
 import { useCommitSelectionMutation } from '@/features/shopping/api';
 import { useStoresQuery } from '@/features/stores/api';
 import { BottomTabInset, BrandColors, Fonts, MaxContentWidth, Spacing } from '@/constants/theme';
@@ -79,19 +79,6 @@ function useStoreComparison(listId: string, includeStaples: boolean) {
     () => new Map(itemAssignments.map((assignment) => [assignment.listItemId, assignment.price])),
     [itemAssignments]
   );
-
-  // The matched product's own name/tier at that same assigned chain -- lets List Hub
-  // show which real product the shopper-tier setting (or a per-item override) picked.
-  const itemProductInfo = useMemo(() => {
-    const map = new Map<string, { name: string; tier: ProductTier | null }>();
-    const matchByItem = new Map(matches.map((match) => [match.listItemId, match]));
-    for (const assignment of itemAssignments) {
-      const match = matchByItem.get(assignment.listItemId);
-      const chain = match?.chains.find((c) => c.chainSlug === assignment.chainSlug);
-      if (chain?.productName) map.set(assignment.listItemId, { name: chain.productName, tier: chain.productTier });
-    }
-    return map;
-  }, [matches, itemAssignments]);
 
   // Per-recipe subtotal at the single cheapest store -- shown on each recipe row
   // regardless of which combo the user later picks, so recipe cards don't jump around
@@ -141,7 +128,6 @@ function useStoreComparison(listId: string, includeStaples: boolean) {
     storesBySlug,
     optimizerItems,
     itemPrices,
-    itemProductInfo,
     recipePrices,
     recipeIngredients,
     stapleItems: stapleMatches,
@@ -174,7 +160,6 @@ export default function ListHubScreen() {
     storesBySlug,
     optimizerItems,
     itemPrices,
-    itemProductInfo,
     recipePrices,
     recipeIngredients,
     stapleItems,
@@ -195,6 +180,12 @@ export default function ListHubScreen() {
   const pendingChoiceKinds = pendingChoiceItemId ? itemKinds.get(pendingChoiceItemId) ?? [] : [];
 
   const kindsFor = (itemId: string) => itemKinds.get(itemId) ?? [];
+  // Only genuinely ambiguous items (no clear best guess -- see needsKindChoice) prompt the
+  // user; tapping the row is always available so a confident auto-pick can still be
+  // overridden. Never surfaces the raw matched product's own (supermarket-specific) name --
+  // the caption is always the standardized, store-agnostic kind label.
+  const isAmbiguousItem = (itemId: string) => needsKindChoice(kindsFor(itemId));
+  const kindLabelFor = (item: ListItemMatchRow) => item.variantLabel ?? kindsFor(item.listItemId)[0]?.label ?? null;
 
   function toggleRecipeExpanded(recipeId: string) {
     setExpandedRecipeIds((current) => {
@@ -380,9 +371,8 @@ export default function ListHubScreen() {
                         quantity={item.quantity}
                         unit={item.unit}
                         price={itemPrices.get(item.listItemId)}
-                        matchedProductName={itemProductInfo.get(item.listItemId)?.name}
-                        matchedProductTier={itemProductInfo.get(item.listItemId)?.tier}
-                        needsChoice={kindsFor(item.listItemId).length > 1 && !item.variantLabel}
+                        kindLabel={kindLabelFor(item)}
+                        needsChoice={isAmbiguousItem(item.listItemId) && !item.variantLabel}
                         onPress={kindsFor(item.listItemId).length > 0 ? () => setPendingChoiceItemId(item.listItemId) : undefined}
                       />
                     ))}
@@ -437,9 +427,8 @@ export default function ListHubScreen() {
                       quantity={item.quantity}
                       unit={item.unit}
                       price={itemPrices.get(item.listItemId)}
-                      matchedProductName={itemProductInfo.get(item.listItemId)?.name}
-                      matchedProductTier={itemProductInfo.get(item.listItemId)?.tier}
-                      needsChoice={kindsFor(item.listItemId).length > 1 && !item.variantLabel}
+                      kindLabel={kindLabelFor(item)}
+                      needsChoice={isAmbiguousItem(item.listItemId) && !item.variantLabel}
                       onPress={kindsFor(item.listItemId).length > 0 ? () => setPendingChoiceItemId(item.listItemId) : undefined}
                     />
                   ))}
@@ -458,9 +447,8 @@ export default function ListHubScreen() {
                   quantity={item.quantity}
                   unit={item.unit}
                   price={itemPrices.get(item.listItemId)}
-                  matchedProductName={itemProductInfo.get(item.listItemId)?.name}
-                  matchedProductTier={itemProductInfo.get(item.listItemId)?.tier}
-                  needsChoice={kindsFor(item.listItemId).length > 1 && !item.variantLabel}
+                  kindLabel={kindLabelFor(item)}
+                  needsChoice={isAmbiguousItem(item.listItemId) && !item.variantLabel}
                   onPress={kindsFor(item.listItemId).length > 0 ? () => setPendingChoiceItemId(item.listItemId) : undefined}
                   onRemove={() => handleRemoveManualProduct(item.listItemId)}
                 />

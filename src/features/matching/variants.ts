@@ -36,9 +36,21 @@ export type ProductKind = {
   chainCount: number;
   /** Cheapest price seen for this kind ("vanaf €X"). */
   fromPrice: number;
+  /** Mean trigram-similarity score of the candidates behind this kind -- how well it
+   * matches what the user actually typed, independent of how many chains carry it.
+   * Drives both the "most likely first" ordering and needsKindChoice()'s ambiguity check. */
+  confidence: number;
 };
 
 const MAX_KINDS = 4;
+
+// A kind's confidence must clear this to count as a plausible reading of the typed name at
+// all -- mirrors match_list_items()'s own 0.3 "matched" cutoff, so "barely resembles it"
+// candidates can't force a choice.
+const MIN_PLAUSIBLE_CONFIDENCE = 0.3;
+// How close the top two kinds' confidence must be to count as genuine doubt. Below this gap,
+// the top kind is a clearly better guess and no user decision is needed.
+const CONFIDENCE_GAP_THRESHOLD = 0.1;
 
 // Convert a product's original unit to its base unit (gram / milliliter / piece) so sizes
 // are comparable within a unit_type -- mirrors the ingest function's unit factors.
@@ -140,6 +152,7 @@ export function standardizeVariants(candidates: ProductCandidate[]): ProductKind
     const sizeMax = Math.max(...group.bases);
     const chainCount = new Set(group.items.map((item) => item.chainSlug)).size;
     const fromPrice = Math.min(...group.items.map((item) => item.price));
+    const confidence = group.items.reduce((sum, item) => sum + item.score, 0) / group.items.length;
     const nameTokens = representativeName(group.items);
     const namePart = nameTokens ? titleCase(nameTokens) : 'Product';
     kinds.push({
@@ -150,13 +163,33 @@ export function standardizeVariants(candidates: ProductCandidate[]): ProductKind
       sizeMax,
       chainCount,
       fromPrice,
+      confidence,
     });
   }
 
-  const ranked = kinds.sort((a, b) => b.chainCount - a.chainCount || a.fromPrice - b.fromPrice);
+  // Most-likely-first: confidence (how well it matches what was typed) is the primary
+  // signal, not chain breadth -- a widely-stocked but poorly-matching kind shouldn't
+  // outrank a kind that's clearly what the user meant. Breadth and price only break ties.
+  const ranked = kinds.sort(
+    (a, b) => b.confidence - a.confidence || b.chainCount - a.chainCount || a.fromPrice - b.fromPrice
+  );
   // Prefer kinds carried by multiple chains -- the "available at many supermarkets" promise,
   // and it drops one-off noise (a lone product at a single chain). Only fall back to
   // single-chain kinds when there aren't at least two broadly-available ones.
   const broad = ranked.filter((kind) => kind.chainCount >= 2);
   return (broad.length >= 2 ? broad : ranked).slice(0, MAX_KINDS);
+}
+
+/**
+ * True only when there's genuine doubt about which kind the user meant: at least two kinds
+ * are both plausible readings of the typed name (confidence >= MIN_PLAUSIBLE_CONFIDENCE) and
+ * neither clearly beats the other. When one kind is a clearly better guess, no user decision
+ * is needed -- match_list_items() already resolves it via its own scoring. `kinds` must be
+ * standardizeVariants()'s output (confidence-sorted); only the top two are compared.
+ */
+export function needsKindChoice(kinds: ProductKind[]): boolean {
+  if (kinds.length < 2) return false;
+  const [top, runnerUp] = kinds;
+  if (runnerUp.confidence < MIN_PLAUSIBLE_CONFIDENCE) return false;
+  return top.confidence - runnerUp.confidence <= CONFIDENCE_GAP_THRESHOLD;
 }

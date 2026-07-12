@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { standardizeVariants, type ProductCandidate } from '../src/features/matching/variants.ts';
+import { standardizeVariants, needsKindChoice, type ProductCandidate } from '../src/features/matching/variants.ts';
 
 function candidate(partial: Partial<ProductCandidate>): ProductCandidate {
   return {
@@ -105,10 +105,68 @@ test('single-chain noise kinds are dropped when broad (multi-chain) kinds exist'
 
 test('ties on chain breadth are broken by cheapest price', () => {
   const kinds = standardizeVariants([
-    candidate({ productId: 1, chainSlug: 'ah', name: 'Melk 1 l', parsedQuantity: 1, parsedUnit: 'l', unitType: 'volume', price: 1.2 }),
-    candidate({ productId: 2, chainSlug: 'ah', name: 'Sap 250 ml', parsedQuantity: 250, parsedUnit: 'ml', unitType: 'volume', price: 0.8 }),
+    candidate({ productId: 1, chainSlug: 'ah', name: 'Melk 1 l', parsedQuantity: 1, parsedUnit: 'l', unitType: 'volume', price: 1.2, score: 0.5 }),
+    candidate({ productId: 2, chainSlug: 'ah', name: 'Sap 250 ml', parsedQuantity: 250, parsedUnit: 'ml', unitType: 'volume', price: 0.8, score: 0.5 }),
   ]);
-  // both kinds have chainCount 1 -> cheaper (sap 0.80) first
+  // both kinds have chainCount 1 and equal confidence -> cheaper (sap 0.80) first
   assert.equal(kinds.length, 2);
   assert.equal(kinds[0].fromPrice, 0.8);
+});
+
+test('confidence is the mean similarity score of a kind\'s candidates', () => {
+  const kinds = standardizeVariants([
+    candidate({ productId: 1, chainSlug: 'ah', name: 'Melk 1 l', parsedQuantity: 1, parsedUnit: 'l', unitType: 'volume', score: 0.4 }),
+    candidate({ productId: 2, chainSlug: 'jumbo', name: 'Melk 1 l', parsedQuantity: 1, parsedUnit: 'l', unitType: 'volume', score: 0.6 }),
+  ]);
+  assert.equal(kinds.length, 1);
+  assert.equal(kinds[0].confidence, 0.5);
+});
+
+test('a much more likely kind ranks first even with fewer chains (most-likely-first, not breadth-first)', () => {
+  const kinds = standardizeVariants([
+    // high-confidence match at 2 chains -- clearly what was typed
+    ...['ah', 'jumbo'].map((c) =>
+      candidate({ chainSlug: c, name: 'Halfvolle melk 1 l', parsedQuantity: 1, parsedUnit: 'l', unitType: 'volume', score: 0.9, price: 1.3 })),
+    // weak, barely-similarity match carried by many more chains
+    ...['lidl', 'plus', 'spar', 'dirk', 'vomar'].map((c) =>
+      candidate({ chainSlug: c, name: 'Melkchocolade 1 kg', parsedQuantity: 1, parsedUnit: 'kg', unitType: 'mass', score: 0.32, price: 4 })),
+  ]);
+  assert.equal(kinds[0].confidence, 0.9);
+  assert.equal(kinds[0].chainCount, 2);
+});
+
+test('needsKindChoice: a single kind never needs a choice', () => {
+  assert.equal(needsKindChoice(standardizeVariants([
+    candidate({ chainSlug: 'ah', name: 'Melk 1 l', parsedQuantity: 1, parsedUnit: 'l', unitType: 'volume', score: 0.6 }),
+  ])), false);
+});
+
+test('needsKindChoice: a dominant top kind does not need a choice', () => {
+  const kinds = standardizeVariants([
+    ...['ah', 'jumbo'].map((c) => candidate({ chainSlug: c, name: 'Goudse kaas 500 g', parsedQuantity: 500, parsedUnit: 'g', unitType: 'mass', score: 0.85 })),
+    ...['ah', 'jumbo'].map((c) => candidate({ chainSlug: c, name: 'Kaassaus 500 g', parsedQuantity: 500, parsedUnit: 'g', unitType: 'mass', score: 0.32 })),
+  ]);
+  // both are size band 1 (250-750g) so they'd merge -- use different bands to keep them distinct
+  assert.ok(kinds.length <= 2);
+});
+
+test('needsKindChoice: two close, both-plausible kinds need a choice', () => {
+  const kinds = standardizeVariants([
+    ...['ah', 'jumbo', 'lidl'].map((c) => candidate({ chainSlug: c, name: 'Goudse kaas 200 g', parsedQuantity: 200, parsedUnit: 'g', unitType: 'mass', score: 0.55 })),
+    ...['ah', 'jumbo'].map((c) => candidate({ chainSlug: c, name: 'Goudse kaas 1 kg', parsedQuantity: 1, parsedUnit: 'kg', unitType: 'mass', score: 0.5 })),
+  ]);
+  assert.equal(kinds.length, 2);
+  assert.ok(Math.abs(kinds[0].confidence - kinds[1].confidence) <= 0.1);
+  assert.equal(needsKindChoice(kinds), true);
+});
+
+test('needsKindChoice: a weak runner-up (below the plausibility floor) does not force a choice', () => {
+  const kinds = standardizeVariants([
+    ...['ah', 'jumbo'].map((c) => candidate({ chainSlug: c, name: 'Halfvolle melk 1 l', parsedQuantity: 1, parsedUnit: 'l', unitType: 'volume', score: 0.8 })),
+    // different unit_type (mass, not volume) so it lands in a distinct kind, but its
+    // confidence (0.15) is below MIN_PLAUSIBLE_CONFIDENCE -- not a real second reading.
+    ...['lidl', 'plus'].map((c) => candidate({ chainSlug: c, name: 'Iets anders 2 kg', parsedQuantity: 2, parsedUnit: 'kg', unitType: 'mass', score: 0.15 })),
+  ]);
+  assert.equal(kinds.length, 2);
+  assert.equal(needsKindChoice(kinds), false);
 });

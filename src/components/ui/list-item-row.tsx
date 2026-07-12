@@ -3,7 +3,6 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { PriceText } from '@/components/ui/price-text';
 import { ProductIcon, matchProductCategory } from '@/components/ui/product-icon';
-import type { ProductTier } from '@/features/matching/api';
 import { BrandColors, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useTranslation } from '@/i18n';
@@ -14,12 +13,12 @@ export type ListItemRowProps = {
   unit?: string | null;
   /** The item's matched price at the single-cheapest-store baseline; undefined when unmatched (honest gap -- shows nothing, never €0,00). */
   price?: number;
-  /** The actually-matched product's own name/tier at that same baseline chain -- shown
-   * as a caption so it's clear which real product (and tier) the price is for. */
-  matchedProductName?: string | null;
-  matchedProductTier?: ProductTier | null;
-  /** Shows a "kies soort" pill: the item resolves to several distinct product kinds and
-   * the user hasn't chosen one yet. Tapping the row opens the kind chooser. */
+  /** A standardized, store-agnostic product-kind label (e.g. "Blok kaas · ~500 g") shown as
+   * a caption -- NEVER a specific supermarket's own product name/SKU. Null when we can't
+   * characterize the match well enough to offer a label. */
+  kindLabel?: string | null;
+  /** Shows a "kies soort" pill: there's genuine doubt about which kind the user meant (see
+   * needsKindChoice) and they haven't chosen one yet. Tapping the row opens the chooser. */
   needsChoice?: boolean;
   /** Opens the product-kind chooser; only passed for items that can be re-matched. */
   onPress?: () => void;
@@ -34,15 +33,13 @@ export function ListItemRow({
   quantity,
   unit,
   price,
-  matchedProductName,
-  matchedProductTier,
+  kindLabel,
   needsChoice,
   onPress,
   onRemove,
 }: ListItemRowProps) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const tierLabel = matchedProductTier ? tierLabelFor(matchedProductTier, t) : null;
 
   const row = (
     <View style={[styles.row, { borderColor: theme.backgroundElement }]}>
@@ -51,10 +48,9 @@ export function ListItemRow({
         <ThemedText type="small" numberOfLines={1}>
           {name}
         </ThemedText>
-        {matchedProductName && (
+        {kindLabel && (
           <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
-            {matchedProductName}
-            {tierLabel ? ` · ${tierLabel}` : ''}
+            {kindLabel}
           </ThemedText>
         )}
       </View>
@@ -82,10 +78,6 @@ export function ListItemRow({
 
   if (!onPress) return row;
   return <Pressable onPress={onPress}>{row}</Pressable>;
-}
-
-function tierLabelFor(tier: ProductTier, t: ReturnType<typeof useTranslation>['t']) {
-  return { budget: t.listHub.tierBudget, standard: t.listHub.tierStandard, premium: t.listHub.tierPremium }[tier];
 }
 
 const styles = StyleSheet.create({
