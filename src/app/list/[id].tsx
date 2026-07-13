@@ -50,20 +50,20 @@ function useStoreComparison(listId: string, includeStaples: boolean) {
   const { data: candidatesByItem } = useListItemCandidatesQuery(listId);
 
   // Compare only ever recommends stores the user has actually chosen in Profile ("Mijn
-  // supermarkten") -- match_list_items() itself still prices every active chain (so a
-  // newly-added store doesn't need a re-match to show up), but the optimizer inputs below
-  // are filtered down before ranking combos, so an unchosen chain is never suggested.
+  // supermarkten"); the optimizer inputs below are filtered before ranking combos, so an
+  // unchosen chain is never suggested and every shown price is achievable for this user.
   const allowedChainSlugs = useMemo(() => new Set(userStores.map((store) => store.chainSlug)), [userStores]);
 
-  // Collapse each item's raw candidate products into a few store-agnostic "kinds" the user
-  // can pick between (see features/matching/variants). Empty until the migration is applied.
+  // Collapse each item's candidate products into a few store-agnostic "kinds" the user can
+  // pick between (features/matching/variants) -- annotated with availability/prices over
+  // the user's own stores. kinds[0] is the pre-selection client-side matching also uses.
   const itemKinds = useMemo(() => {
     const map = new Map<string, ProductKind[]>();
     if (candidatesByItem) {
-      for (const [itemId, candidates] of candidatesByItem) map.set(itemId, standardizeVariants(candidates));
+      for (const [itemId, entry] of candidatesByItem) map.set(itemId, standardizeVariants(entry.candidates, allowedChainSlugs));
     }
     return map;
-  }, [candidatesByItem]);
+  }, [candidatesByItem, allowedChainSlugs]);
 
   // Only staple-sourced rows are ever excluded, and only when the toggle is off --
   // recipe and manual ("Losse producten") rows always count toward Compare.
@@ -75,16 +75,22 @@ function useStoreComparison(listId: string, includeStaples: boolean) {
     () => toOptimizerItems(includedMatches, allowedChainSlugs),
     [includedMatches, allowedChainSlugs]
   );
-  const combos = useMemo(() => bestCombos(optimizerItems), [optimizerItems]);
+  // The user is assumed willing to visit up to 3 of their own supermarkets (fewer when
+  // they've selected fewer) -- every price in the app is the "vanaf" price under that
+  // assumption, and the UI says so (see the caption under the Compare CTA).
+  const maxStores = Math.max(1, Math.min(3, allowedChainSlugs.size));
+  const combos = useMemo(() => bestCombos(optimizerItems, maxStores), [optimizerItems, maxStores]);
+  // The best combo at the largest store count -- the "go to all your stores" baseline.
+  const baselineCombo = combos.length > 0 ? combos[combos.length - 1] : undefined;
   const storesBySlug = useMemo(() => new Map(stores.map((store) => [store.slug, store])), [stores]);
 
-  // Per-item price at the single-cheapest-store baseline -- shown on every expanded
-  // row (recipe ingredient, staple, manual product) regardless of which combo the user
-  // later picks, so rows don't jump around as the 1/2/3-store selector changes. Same
-  // baseline recipePrices below sums from.
+  // Per-item "vanaf" price: each item at its cheapest chain within the baseline combo --
+  // shown on every expanded row (recipe ingredient, staple, manual product) regardless of
+  // which combo the user previews in the Compare sheet, so rows don't jump around. The
+  // same baseline feeds recipePrices below.
   const itemAssignments = useMemo(
-    () => (combos.length === 0 ? [] : assignItems(optimizerItems, combos[0].chains)),
-    [optimizerItems, combos]
+    () => (baselineCombo === undefined ? [] : assignItems(optimizerItems, baselineCombo.chains)),
+    [optimizerItems, baselineCombo]
   );
   const itemPrices = useMemo(
     () => new Map(itemAssignments.map((assignment) => [assignment.listItemId, assignment.price])),
@@ -107,14 +113,15 @@ function useStoreComparison(listId: string, includeStaples: boolean) {
 
   // Staple summary is computed from the full, unfiltered match set (independent of the
   // toggle) so the "Vaste producten" card always shows what's in the list, not what's
-  // currently priced -- same honest-gap rule as ListSummary.bestSingleStoreTotal: only a
-  // full-coverage single store earns a headline price.
+  // currently priced -- same honest-gap rule as the list previews: only full coverage
+  // within the user's own stores earns a headline "vanaf" price.
   const stapleMatches = useMemo(() => matches.filter((match) => match.sourceType === 'staple'), [matches]);
   const stapleOptimizerItems = useMemo(
     () => toOptimizerItems(stapleMatches, allowedChainSlugs),
     [stapleMatches, allowedChainSlugs]
   );
-  const stapleBestCombo = useMemo(() => bestCombos(stapleOptimizerItems, 1)[0], [stapleOptimizerItems]);
+  const stapleCombos = useMemo(() => bestCombos(stapleOptimizerItems, maxStores), [stapleOptimizerItems, maxStores]);
+  const stapleBestCombo = stapleCombos.length > 0 ? stapleCombos[stapleCombos.length - 1] : undefined;
   const staplePrice =
     stapleOptimizerItems.length > 0 && stapleBestCombo?.coveredCount === stapleOptimizerItems.length
       ? stapleBestCombo.total
@@ -139,6 +146,7 @@ function useStoreComparison(listId: string, includeStaples: boolean) {
     hasItems: matches.length > 0,
     matches,
     combos,
+    baselineCombo,
     storesBySlug,
     optimizerItems,
     itemPrices,
@@ -171,6 +179,7 @@ export default function ListHubScreen() {
     hasItems,
     matches,
     combos,
+    baselineCombo,
     storesBySlug,
     optimizerItems,
     itemPrices,
@@ -181,7 +190,9 @@ export default function ListHubScreen() {
     manualItems,
     itemKinds,
   } = useStoreComparison(id, list?.includeStaples ?? true);
-  const [selectedCount, setSelectedCount] = useState('1');
+  // '3' so the sheet opens on the best multi-store split (falls back to the user's max
+  // available store count via baselineCombo when they have fewer than 3 stores).
+  const [selectedCount, setSelectedCount] = useState('3');
   const [isRenaming, setIsRenaming] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
   const [isStaplesExpanded, setIsStaplesExpanded] = useState(false);
@@ -220,7 +231,7 @@ export default function ListHubScreen() {
   }, []);
 
   // Adding several loose products in a row (see "Losse producten" below) should only
-  // trigger match_list_items once, not once per product -- debounce instead of
+  // trigger matching once, not once per product -- debounce instead of
   // re-matching on every single insert/delete.
   function scheduleMatch() {
     if (matchDebounceRef.current) clearTimeout(matchDebounceRef.current);
@@ -242,9 +253,9 @@ export default function ListHubScreen() {
     removeListItemMutation.mutate({ id: itemId, listId: id }, { onSuccess: scheduleMatch });
   }
 
-  // Picking a kind doesn't re-price by itself -- match_list_items() is what resolves the
-  // variant_* constraints into a matched_product_id per chain, so a choice needs an
-  // immediate rematch (not the debounced scheduleMatch) to show its effect right away.
+  // Picking a kind doesn't re-price by itself -- the client-side matcher (matching/api.ts)
+  // is what resolves the variant_* constraints into a matched product per chain, so a choice
+  // needs an immediate rematch (not the debounced scheduleMatch) to show its effect.
   function handleChooseKind(itemId: string, kind: ProductKind | null) {
     setVariantMutation.mutate(
       { itemId, kind },
@@ -270,7 +281,9 @@ export default function ListHubScreen() {
     setIsRenaming(false);
   }
 
-  const selectedCombo = combos.find((combo) => String(combo.storeCount) === selectedCount) ?? combos[0];
+  // The Compare sheet previews 1..N store splits; it opens on the baseline (max stores).
+  const selectedCombo = combos.find((combo) => String(combo.storeCount) === selectedCount) ?? baselineCombo;
+  const effectiveCount = String(selectedCombo?.storeCount ?? 1);
   const singleStoreTotal = combos[0]?.total;
   const saving =
     selectedCombo && singleStoreTotal !== undefined && selectedCombo.storeCount > 1 && selectedCombo.coveredCount >= combos[0].coveredCount
@@ -505,12 +518,19 @@ export default function ListHubScreen() {
                 to where its bottom sheet rises from; the spacer collapses to nothing
                 once the list is long enough to scroll. */}
             <View style={styles.footerSpacer} />
-            {hasItems && selectedCombo ? (
-              <TotalBanner
-                ctaLabel={t.listHub.compareStores}
-                amount={combos[0]?.total ?? 0}
-                onPress={() => setIsCompareOpen(true)}
-              />
+            {hasItems && baselineCombo ? (
+              <View style={styles.footerBlock}>
+                <TotalBanner
+                  ctaLabel={t.listHub.compareStores}
+                  amount={baselineCombo.total}
+                  onPress={() => setIsCompareOpen(true)}
+                />
+                {/* Every price on this screen is the "vanaf" price under this assumption --
+                    say it once, here, instead of decorating every row. */}
+                <ThemedText type="small" themeColor="textSecondary" style={styles.footerNote}>
+                  {t.listHub.pricesAcrossStores(baselineCombo.chains.length)}
+                </ThemedText>
+              </View>
             ) : (
               <HonestGapCard
                 title={t.listHub.pricingComingSoonTitle}
@@ -540,7 +560,7 @@ export default function ListHubScreen() {
                 </View>
 
                 <SegmentedControl
-                  value={selectedCount}
+                  value={effectiveCount}
                   onChange={setSelectedCount}
                   options={combos.map((combo) => ({
                     value: String(combo.storeCount),
@@ -627,7 +647,7 @@ export default function ListHubScreen() {
                         {kind.label}
                       </ThemedText>
                       <ThemedText type="small" themeColor="textSecondary">
-                        {t.listHub.kindAvailability(kind.chainCount)}
+                        {t.listHub.kindMatch(Math.round(kind.confidence * 100))} · {t.listHub.kindAvailability(kind.chainCount)}
                         {selected && !pendingIsExplicitChoice ? ` · ${t.listHub.kindPreselected}` : ''}
                       </ThemedText>
                     </View>
@@ -703,6 +723,12 @@ const styles = StyleSheet.create({
   footerSpacer: {
     flexGrow: 1,
     minHeight: Spacing.four,
+  },
+  footerBlock: {
+    gap: Spacing.one,
+  },
+  footerNote: {
+    textAlign: 'center',
   },
   comboCard: {
     borderRadius: 16,

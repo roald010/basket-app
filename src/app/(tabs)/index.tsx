@@ -133,9 +133,12 @@ export default function HomeScreen() {
                       {t.home.recipesCount(list.recipeCount)} · {t.lists.createdOn(formatListDate(list.createdAt, locale))}
                     </ThemedText>
                   </View>
-                  {list.bestSingleStoreTotal != null && (
+                  {list.fromPrice != null && (
                     <View style={styles.priceColumn}>
-                      <PriceText amount={list.bestSingleStoreTotal} />
+                      <PriceText amount={list.fromPrice} />
+                      <ThemedText type="small" themeColor="textSecondary">
+                        {t.lists.fromStores(list.storeCount)}
+                      </ThemedText>
                     </View>
                   )}
                 </Pressable>

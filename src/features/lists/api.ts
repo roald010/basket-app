@@ -199,7 +199,7 @@ async function addManualItem(input: { listId: string; name: string }): Promise<v
 
 /** One-off products added straight to a list (List Hub's "Losse producten" section) --
  * not tied to a recipe or a staple_template. Callers should debounce the follow-up
- * match_list_items call themselves when adding several in a row (see list/[id].tsx) --
+ * re-match themselves when adding several in a row (see list/[id].tsx) --
  * this mutation only writes the row, it doesn't re-match on every single add. */
 export function useAddManualItemMutation() {
   const queryClient = useQueryClient();
@@ -237,8 +237,11 @@ export type ListSummary = {
   name: string;
   createdAt: string;
   recipeCount: number;
-  /** Cheapest single-store total, only when one store covers every item; null otherwise (never a partial total shown as if complete). */
-  bestSingleStoreTotal: number | null;
+  /** "Vanaf" total: cheapest split across up to 3 of the user's own stores, only when that
+   * split covers every item; null otherwise (never a partial total shown as if complete). */
+  fromPrice: number | null;
+  /** How many stores the fromPrice split uses -- drives the "vanaf · N winkels" caption. */
+  storeCount: number;
 };
 
 async function fetchLists(): Promise<ListSummary[]> {
@@ -274,18 +277,21 @@ async function fetchLists(): Promise<ListSummary[]> {
         }),
       }));
 
-      // Only a full-coverage single store gets a headline price -- a partial total would
-      // read as complete and undersell the real basket (the honest-gap principle).
-      const best = bestCombos(items, 1)[0];
-      const bestSingleStoreTotal =
-        best && items.length > 0 && best.coveredCount === items.length ? best.total : null;
+      // "Vanaf" price under the app-wide assumption: the user visits up to 3 of their own
+      // stores (fewer when they've selected fewer). Only full coverage earns a headline
+      // price -- a partial total would read as complete (the honest-gap principle).
+      const maxStores = Math.max(1, Math.min(3, allowedChainSlugs.size));
+      const combos = bestCombos(items, maxStores);
+      const best = combos.length > 0 ? combos[combos.length - 1] : undefined;
+      const fromPrice = best && items.length > 0 && best.coveredCount === items.length ? best.total : null;
 
       return {
         id: list.id,
         name: list.name,
         createdAt: list.created_at,
         recipeCount: list.recipes.length,
-        bestSingleStoreTotal,
+        fromPrice,
+        storeCount: best?.chains.length ?? 0,
       };
     });
 }

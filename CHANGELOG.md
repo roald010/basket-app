@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (matching & pricing overhaul, 2026-07-13)
+
+- Product matching rebuilt on a token-level **match-probability model**
+  (`src/features/matching/score.ts`): coverage of the typed query, head-noun analysis
+  (compounds: "kokosmelk" is melk, "melkchocolade"/"kaassaus" are not), plural/typo
+  tolerance, and a specificity penalty — replacing pg_trgm scores, which either buried
+  genuine matches (similarity) or embraced junk like "Whiskas Cat Milk" (word_similarity).
+- Matching moved **client-side** (SQL `match_list_items()` dropped): the same probability
+  model now drives the kind chooser, the pre-selection, and the persisted per-chain
+  prices — one brain. Chains without a plausible in-kind product get no match (honest gap).
+- The chooser shows each kind's **"N% match"** probability and marks the pre-selected
+  kind; the auto pre-selection is exactly what pricing uses.
+- All prices are now **"vanaf" prices assuming up to 3 of the user's own stores** (fewer
+  if fewer selected): List Hub rows/recipe subtotals/Compare CTA, the Lists tab and Home
+  previews ("vanaf · N winkels"), with a caption under the Compare CTA stating the
+  assumption.
+
 ### Added
 
 - Unit tests for the pure business logic (store-combination optimizer, PostgREST

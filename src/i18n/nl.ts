@@ -30,7 +30,7 @@ export const nl = {
   lists: {
     title: 'Mandjes',
     createdOn: (date: string) => date,
-    fromOneStore: 'bij 1 winkel',
+    fromStores: (n: number) => (n === 1 ? 'vanaf · 1 winkel' : `vanaf · ${n} winkels`),
     deleteLabel: (name: string) => `${name} verwijderen`,
   },
   staples: {
@@ -90,6 +90,9 @@ export const nl = {
     kindAvailability: (n: number) => `in ${n} winkel${n === 1 ? '' : 's'}`,
     kindFrom: 'vanaf',
     kindPreselected: 'voorgeselecteerd',
+    kindMatch: (p: number) => `${p}% match`,
+    pricesAcrossStores: (n: number) =>
+      n === 1 ? 'Goedkoopste prijzen bij 1 winkel' : `Goedkoopste prijzen, verdeeld over ${n} winkels`,
   },
   shopping: {
     total: 'Totaal',

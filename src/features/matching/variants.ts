@@ -6,10 +6,14 @@
 //
 // Pure and RN-free (no imports) so it runs under Node's built-in test runner with
 // type-stripping, exactly like optimize.ts. All heuristics live here and are unit-tested.
+// Callers must pre-filter candidates to score >= CANDIDATE_FLOOR (features/matching/score)
+// -- api.ts's fetchListItemCandidates does -- so no junk candidate can seed a kind.
 
 export type UnitType = 'mass' | 'volume' | 'count';
 
-/** One matched product, as returned (camel-cased) by get_list_item_candidates. */
+/** One candidate product for a list item. `score` is the client-computed match
+ * probability (features/matching/score.ts) -- how likely this product IS what the user
+ * typed -- NOT the raw pg_trgm recall score the RPC used to find it. */
 export type ProductCandidate = {
   productId: number;
   chainSlug: string;
@@ -32,26 +36,18 @@ export type ProductKind = {
   /** Observed size band in the base unit (g / ml / piece), inclusive. */
   sizeMin: number;
   sizeMax: number;
-  /** How many distinct chains carry this kind -- drives "in N winkels". */
+  /** How many distinct chains carry this kind -- drives "in N winkels". Computed over the
+   * user's own chains when standardizeVariants is given allowedChainSlugs. */
   chainCount: number;
-  /** Cheapest price seen for this kind ("vanaf €X"). */
+  /** Cheapest price seen for this kind ("vanaf €X") -- over the user's own chains when
+   * allowedChainSlugs is given, so a quoted price is always achievable for this user. */
   fromPrice: number;
-  /** Mean word_similarity score of the candidates behind this kind -- how well it matches
-   * what the user actually typed. Drives "most likely first" ordering; NOT a reliable
-   * signal for telling kinds apart (see MIN_PLAUSIBLE_CONFIDENCE below) -- word_similarity
-   * scores a genuine word match ~1.0 almost regardless of the rest of the product name, so
-   * two truly different kinds of the same item (small vs. big block of cheese) both come
-   * back near-maximal confidence. Chain breadth, not confidence, is what actually tells them
-   * apart (see needsKindChoice). */
+  /** Best match probability among this kind's members (features/matching/score.ts) --
+   * how likely this kind is what the user meant. Shown as "N% match" in the chooser. */
   confidence: number;
 };
 
 const MAX_KINDS = 4;
-
-// A kind's confidence must clear this to count as a plausible reading of the typed name at
-// all -- mirrors match_list_items()'s own 0.5 "matched" cutoff (both post-word_similarity),
-// so a coincidental low-score candidate can't become an offered kind in the first place.
-const MIN_PLAUSIBLE_CONFIDENCE = 0.5;
 
 // Convert a product's original unit to its base unit (gram / milliliter / piece) so sizes
 // are comparable within a unit_type -- mirrors the ingest function's unit factors.
@@ -76,7 +72,9 @@ const STOP_TOKENS = new Set<string>([
   'van', 'en',
 ]);
 
-function baseQuantity(candidate: ProductCandidate): number | null {
+/** A candidate's size normalized to its base unit (g / ml / piece); null when unparseable.
+ * Exported for the client-side matcher, which filters candidates to a kind's size band. */
+export function baseQuantity(candidate: ProductCandidate): number | null {
   if (candidate.parsedQuantity == null || candidate.unitType == null || !candidate.parsedUnit) return null;
   const factor = UNIT_TO_BASE[candidate.parsedUnit.toLowerCase()];
   if (!factor) return null;
@@ -129,11 +127,15 @@ function representativeName(candidates: ProductCandidate[]): string {
 }
 
 /**
- * Collapses candidates into up to MAX_KINDS store-agnostic kinds, ranked by how many chains
- * carry them (breadth) then price. Returns [] or a single kind when there's nothing to
- * disambiguate -- callers treat `length > 1` as "ask the user to choose".
+ * Collapses candidates into up to MAX_KINDS store-agnostic kinds, most-likely-first.
+ * Candidates must already carry match probabilities as `score` and be pre-filtered to
+ * CANDIDATE_FLOOR (features/matching/api.ts does both). When `allowedChainSlugs` is given
+ * (the user's own supermarkets), kinds are still CLUSTERED over the full market -- labels
+ * and size bands stay stable regardless of store selection -- but chainCount/fromPrice are
+ * computed over the user's chains only, and a kind none of their stores carries is dropped:
+ * every choice shown is actually buyable, at a price actually achievable.
  */
-export function standardizeVariants(candidates: ProductCandidate[]): ProductKind[] {
+export function standardizeVariants(candidates: ProductCandidate[], allowedChainSlugs?: Set<string>): ProductKind[] {
   const groups = new Map<string, { unitType: UnitType; items: ProductCandidate[]; bases: number[] }>();
 
   for (const candidate of candidates) {
@@ -147,13 +149,16 @@ export function standardizeVariants(candidates: ProductCandidate[]): ProductKind
     groups.set(key, group);
   }
 
+  const restrict = allowedChainSlugs != null && allowedChainSlugs.size > 0;
   const kinds: ProductKind[] = [];
   for (const group of groups.values()) {
+    const available = restrict ? group.items.filter((item) => allowedChainSlugs.has(item.chainSlug)) : group.items;
+    if (available.length === 0) continue; // none of the user's stores carries this kind
     const sizeMin = Math.min(...group.bases);
     const sizeMax = Math.max(...group.bases);
-    const chainCount = new Set(group.items.map((item) => item.chainSlug)).size;
-    const fromPrice = Math.min(...group.items.map((item) => item.price));
-    const confidence = group.items.reduce((sum, item) => sum + item.score, 0) / group.items.length;
+    const chainCount = new Set(available.map((item) => item.chainSlug)).size;
+    const fromPrice = Math.min(...available.map((item) => item.price));
+    const confidence = Math.max(...group.items.map((item) => item.score));
     const nameTokens = representativeName(group.items);
     const namePart = nameTokens ? titleCase(nameTokens) : 'Product';
     kinds.push({
@@ -168,34 +173,26 @@ export function standardizeVariants(candidates: ProductCandidate[]): ProductKind
     });
   }
 
-  // Drop coincidental low-score candidates before anything else -- word_similarity can still
-  // clear the SQL layer's own floor on a weak, not-really-relevant match; a kind built only
-  // from those shouldn't be offered at all, ambiguous or not.
-  const plausible = kinds.filter((kind) => kind.confidence >= MIN_PLAUSIBLE_CONFIDENCE);
-  const pool = plausible.length > 0 ? plausible : kinds;
-
-  // Most-likely-first: confidence still orders kinds when it DOES differ, but ties (the
-  // common case -- see the confidence field's own comment) fall back to chain breadth then
-  // price, so the widest-available, cheapest reading of a tie leads.
-  const ranked = pool.sort(
+  // Most-likely-first (confidence is a real probability now); breadth and price break ties.
+  const ranked = kinds.sort(
     (a, b) => b.confidence - a.confidence || b.chainCount - a.chainCount || a.fromPrice - b.fromPrice
   );
   // Prefer kinds carried by multiple chains -- the "available at many supermarkets" promise,
   // and it drops one-off noise (a lone product at a single chain). Only fall back to
-  // single-chain kinds when there aren't at least two broadly-available ones.
+  // single-chain kinds when there aren't at least two broadly-available ones (a user with
+  // one selected store lands here by construction, which is correct).
   const broad = ranked.filter((kind) => kind.chainCount >= 2);
   return (broad.length >= 2 ? broad : ranked).slice(0, MAX_KINDS);
 }
 
 /**
- * True when there's more than one plausible, reasonably common kind to choose between --
- * e.g. courgette genuinely sold both per-kg and per-piece at several chains each. Confidence
- * can't discriminate "genuine doubt" here (see the field's own comment: word_similarity
- * scores any real word match ~1.0, so two truly different kinds usually tie on confidence);
- * standardizeVariants() has already dropped implausible and single-chain-oddity kinds by the
- * time this runs, so surviving multiplicity itself is the signal. `kinds` must be
- * standardizeVariants()'s output.
+ * True when the runner-up kind is a genuinely competitive alternative reading of what the
+ * user typed -- within 75% of the top kind's match probability. A clear winner (e.g.
+ * "Passata ~550g" at 0.88 vs a preparation at 0.55) resolves silently; comparable readings
+ * (courgette per-kg 0.9 vs per-piece 1.0) prompt. `kinds` must be standardizeVariants()'s
+ * output (already floored, ranked, and availability-filtered).
  */
 export function needsKindChoice(kinds: ProductKind[]): boolean {
-  return kinds.length > 1;
+  if (kinds.length < 2) return false;
+  return kinds[1].confidence >= 0.75 * kinds[0].confidence;
 }

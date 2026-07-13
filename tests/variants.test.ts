@@ -113,13 +113,30 @@ test('ties on chain breadth are broken by cheapest price', () => {
   assert.equal(kinds[0].fromPrice, 0.8);
 });
 
-test('confidence is the mean similarity score of a kind\'s candidates', () => {
+test('confidence is the best match probability among a kind\'s candidates', () => {
   const kinds = standardizeVariants([
     candidate({ productId: 1, chainSlug: 'ah', name: 'Melk 1 l', parsedQuantity: 1, parsedUnit: 'l', unitType: 'volume', score: 0.4 }),
     candidate({ productId: 2, chainSlug: 'jumbo', name: 'Melk 1 l', parsedQuantity: 1, parsedUnit: 'l', unitType: 'volume', score: 0.6 }),
   ]);
   assert.equal(kinds.length, 1);
-  assert.equal(kinds[0].confidence, 0.5);
+  assert.equal(kinds[0].confidence, 0.6);
+});
+
+test('allowedChainSlugs scopes availability and price to the user\'s stores', () => {
+  const kinds = standardizeVariants(
+    [
+      // one kind at three chains; the user has only selected two of them
+      candidate({ productId: 1, chainSlug: 'ah', name: 'Halfvolle melk 1 l', parsedQuantity: 1, parsedUnit: 'l', unitType: 'volume', price: 1.35 }),
+      candidate({ productId: 2, chainSlug: 'jumbo', name: 'Halfvolle melk 1 l', parsedQuantity: 1, parsedUnit: 'l', unitType: 'volume', price: 1.19 }),
+      candidate({ productId: 3, chainSlug: 'lidl', name: 'Halfvolle melk 1 l', parsedQuantity: 1, parsedUnit: 'l', unitType: 'volume', price: 0.99 }),
+      // a second kind carried ONLY by a chain the user doesn't visit -> not offered at all
+      candidate({ productId: 4, chainSlug: 'lidl', name: 'Melk 2 l', parsedQuantity: 2, parsedUnit: 'l', unitType: 'volume', price: 1.79 }),
+    ],
+    new Set(['ah', 'jumbo'])
+  );
+  assert.equal(kinds.length, 1); // the lidl-only kind is dropped
+  assert.equal(kinds[0].chainCount, 2); // ah + jumbo, not 3
+  assert.equal(kinds[0].fromPrice, 1.19); // jumbo's price -- lidl's cheaper 0.99 is not achievable
 });
 
 test('a much more likely kind ranks first even with fewer chains (most-likely-first, not breadth-first)', () => {
@@ -142,18 +159,16 @@ test('needsKindChoice: a single kind never needs a choice', () => {
   ])), false);
 });
 
-test('a candidate below the plausibility floor is dropped entirely, not just deprioritized', () => {
-  // word_similarity scores a genuine match ~1.0 almost regardless of the rest of the name, so
-  // confidence can't tell two REAL kinds apart (see the field's own comment) -- but it still
-  // has to reject a coincidental, barely-related match. 0.4 mirrors the real gap measured
-  // against Vomar's catalog: unrelated products capped out around there, genuine matches
-  // scored 0.6+.
+test('needsKindChoice: a clearly weaker runner-up resolves silently', () => {
+  // Candidates arrive pre-floored (api.ts drops < CANDIDATE_FLOOR); a runner-up that
+  // survives the floor but is well below the top kind (< 75% of its probability) is a
+  // preparation/variant, not genuine doubt -- the top kind preselects without a prompt.
   const kinds = standardizeVariants([
-    ...['ah', 'jumbo'].map((c) => candidate({ chainSlug: c, name: 'Halfvolle melk 1 l', parsedQuantity: 1, parsedUnit: 'l', unitType: 'volume', score: 0.8 })),
-    ...['lidl', 'plus'].map((c) => candidate({ chainSlug: c, name: 'Iets anders 2 kg', parsedQuantity: 2, parsedUnit: 'kg', unitType: 'mass', score: 0.4 })),
+    ...['ah', 'jumbo'].map((c) => candidate({ chainSlug: c, name: 'Halfvolle melk 1 l', parsedQuantity: 1, parsedUnit: 'l', unitType: 'volume', score: 0.85 })),
+    ...['lidl', 'plus'].map((c) => candidate({ chainSlug: c, name: 'Melksaus 2 kg', parsedQuantity: 2, parsedUnit: 'kg', unitType: 'mass', score: 0.45 })),
   ]);
-  assert.equal(kinds.length, 1); // the weak candidate never becomes a second kind
-  assert.equal(needsKindChoice(kinds), false);
+  assert.equal(kinds.length, 2); // still offered as an alternative in the chooser
+  assert.equal(needsKindChoice(kinds), false); // but no proactive prompt
 });
 
 test('needsKindChoice: two distinct, plausible kinds need a choice -- e.g. courgette by weight vs. by piece', () => {

@@ -28,8 +28,8 @@ function SwipeableListCard({ list, subtitle }: { list: ListSummary; subtitle: st
         icon={<NavIcon name="lists" color={theme.textSecondary} />}
         title={list.name}
         subtitle={subtitle}
-        price={list.bestSingleStoreTotal ?? undefined}
-        priceCaption={list.bestSingleStoreTotal != null ? t.lists.fromOneStore : undefined}
+        price={list.fromPrice ?? undefined}
+        priceCaption={list.fromPrice != null ? t.lists.fromStores(list.storeCount) : undefined}
         onPress={() => router.push(`/list/${list.id}`)}
       />
     </SwipeToDelete>

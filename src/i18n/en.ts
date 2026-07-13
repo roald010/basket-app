@@ -30,7 +30,7 @@ export const en: Dictionary = {
   lists: {
     title: 'Baskets',
     createdOn: (date: string) => date,
-    fromOneStore: 'at 1 store',
+    fromStores: (n: number) => (n === 1 ? 'from · 1 store' : `from · ${n} stores`),
     deleteLabel: (name: string) => `Delete ${name}`,
   },
   staples: {
@@ -90,6 +90,9 @@ export const en: Dictionary = {
     kindAvailability: (n: number) => `at ${n} store${n === 1 ? '' : 's'}`,
     kindFrom: 'from',
     kindPreselected: 'pre-selected',
+    kindMatch: (p: number) => `${p}% match`,
+    pricesAcrossStores: (n: number) =>
+      n === 1 ? 'Cheapest prices at 1 store' : `Cheapest prices, spread across ${n} stores`,
   },
   shopping: {
     total: 'Total',

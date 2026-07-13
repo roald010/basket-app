@@ -46,7 +46,7 @@ export async function ensureSession() {
   if (!session) throw new Error('Failed to establish a Supabase session');
 
   // profiles has no row-creation trigger -- without this, shopper_tier/display_name
-  // reads return nothing and match_list_items()'s tier bonus never activates.
+  // reads return nothing (shopper_tier/display_name are read from it).
   // ignoreDuplicates makes this a no-op for a returning session.
   const { error: profileError } = await supabase
     .from('profiles')
